@@ -29,7 +29,8 @@ from .player import Wiedergabe
 from .quellen import (KEIN_FENSTER, Titel, cookie_argumente, finde_programm,
                       titel_liste_aufbauen)
 from .spotify import Spotify, SpotifyFehler, playlist_id_aus_text
-from .stream_server import PROTOKOLL, StreamServer
+from .protokoll import PROTOKOLL, abonnieren, protokoll
+from .stream_server import StreamServer
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
                    renderer_laden, renderer_suchen, setze_lautstaerke)
 
@@ -111,7 +112,8 @@ class App(ctk.CTk):
         threading.Thread(target=huelle, daemon=True).start()
 
     def _status(self, text: str) -> None:
-        """Setzt die Statuszeile (thread-sicher)."""
+        """Setzt die Statuszeile (thread-sicher) und schreibt die Meldung ins Protokoll."""
+        protokoll(f"Status: {text}")
         self._ui(lambda: self.lbl_status.configure(text=text))
 
     # ====================================================================
@@ -378,6 +380,21 @@ class App(ctk.CTk):
         self.btn_pause.pack(side="left", padx=3)
         ctk.CTkButton(tasten, text="⏹", width=48, command=self._stoppen).pack(side="left", padx=3)
         ctk.CTkButton(tasten, text="⏭", width=48, command=self._naechster).pack(side="left", padx=3)
+
+        # --- Aufklappbares Protokoll ------------------------------------------
+        # Zeigt live Befehle an den Lautsprecher, Stream-Abrufe und Fehlermeldungen
+        # von yt-dlp/ffmpeg. Standardmaessig zugeklappt.
+        self.btn_protokoll = ctk.CTkButton(leiste, text="▸ Protokoll anzeigen", width=170,
+                                           fg_color="transparent", border_width=1,
+                                           text_color=("gray20", "gray80"),
+                                           command=self._protokoll_umschalten)
+        self.btn_protokoll.grid(row=2, column=0, sticky="w", padx=14, pady=(0, 10))
+        self.txt_protokoll = ctk.CTkTextbox(leiste, height=180, wrap="none",
+                                            font=ctk.CTkFont(family="Consolas", size=12))
+        self.txt_protokoll.configure(state="disabled")  # nur lesen
+        self._protokoll_offen = False
+        # Neue Zeilen kommen aus beliebigen Threads -> ueber die UI-Queue einfuegen
+        abonnieren(lambda zeile: self._ui(lambda: self._protokoll_anhaengen(zeile)))
 
     # ====================================================================
     # Lautsprecher: suchen, waehlen, Lautstaerke
@@ -856,6 +873,34 @@ class App(ctk.CTk):
         self.txt_firewall.delete("1.0", "end")
         self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=port, ende=port + PORT_BEREICH - 1))
         self._status("Einstellungen gespeichert (gelten ab dem nächsten Abspielen).")
+
+    def _protokoll_umschalten(self) -> None:
+        """Klappt das Protokollfeld unter der Player-Leiste auf bzw. zu."""
+        self._protokoll_offen = not self._protokoll_offen
+        if self._protokoll_offen:
+            self.txt_protokoll.grid(row=3, column=0, columnspan=2, sticky="nsew",
+                                    padx=14, pady=(0, 12))
+            self.btn_protokoll.configure(text="▾ Protokoll ausblenden")
+            self.txt_protokoll.see("end")
+        else:
+            self.txt_protokoll.grid_remove()
+            self.btn_protokoll.configure(text="▸ Protokoll anzeigen")
+
+    MAX_PROTOKOLL_ZEILEN = 1000  # aeltere Zeilen werden im Fenster verworfen (Datei bleibt)
+
+    def _protokoll_anhaengen(self, zeile: str) -> None:
+        """Haengt eine Zeile an das Protokollfeld an (nur im Hauptthread aufrufen)."""
+        self.txt_protokoll.configure(state="normal")
+        self.txt_protokoll.insert("end", zeile + "\n")
+        # Fenster-Protokoll begrenzen, damit es bei langem Betrieb nicht traege wird
+        zeilen = int(self.txt_protokoll.index("end-1c").split(".")[0])
+        if zeilen > self.MAX_PROTOKOLL_ZEILEN:
+            self.txt_protokoll.delete("1.0", f"{zeilen - self.MAX_PROTOKOLL_ZEILEN}.0")
+        self.txt_protokoll.configure(state="disabled")
+        self.txt_protokoll.see("end")
+        # Fehler sollen auffallen: bei zugeklapptem Protokoll Schaltflaeche markieren
+        if not self._protokoll_offen and ("✗" in zeile or "ERROR" in zeile or "Fehler" in zeile):
+            self.btn_protokoll.configure(text="▸ Protokoll anzeigen (Fehler!)")
 
     def _protokoll_oeffnen(self) -> None:
         """Oeffnet stream.log im Standard-Editor (Windows) bzw. zeigt den Pfad an."""

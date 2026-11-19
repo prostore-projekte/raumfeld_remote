@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.6.0 – 19.11.2026
+### Hinzugefügt
+- Aufklappbares Live-Protokoll unten im Fenster („▸ Protokoll anzeigen“), Hinweis „(Fehler!)“ bei zugeklapptem Protokoll
+- Protokolliert werden zusätzlich: UPnP-Befehle an den Lautsprecher mit Ergebnis, Zustandswechsel des Lautsprechers,
+  alle Statusmeldungen
+### Geändert
+- Fehlerausgaben von `yt-dlp`/`ffmpeg` werden zeilenweise mitgelesen (Kennzeichnung, welches Programm meldet)
+- Neues Modul `protokoll.py` bündelt das Protokoll (Datei + Anzeige)
+
 ## 0.5.0 – 19.11.2026
 ### Hinzugefügt
 - Stream-Protokoll `%APPDATA%\RaumfeldRemote\stream.log`: Abrufe der Lautsprecher, gesendete Datenmenge und

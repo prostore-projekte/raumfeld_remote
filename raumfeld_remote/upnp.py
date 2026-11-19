@@ -28,6 +28,8 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from xml.sax.saxutils import escape as xml_escape
 
+from .protokoll import protokoll
+
 # Multicast-Adresse/Port fuer SSDP (im UPnP-Standard festgelegt)
 SSDP_ADDR = ("239.255.255.250", 1900)
 
@@ -308,9 +310,25 @@ def soap_aufruf(control_url: str, service_typ: str, aktion: str,
 
 
 def avt(renderer: Renderer, aktion: str, **argumente) -> dict[str, str]:
-    """Kurzform fuer AVTransport-Aufrufe (InstanceID ist immer 0)."""
-    return soap_aufruf(renderer.avtransport_url, SERVICE_AVTRANSPORT, aktion,
-                       {"InstanceID": 0, **argumente})
+    """
+    Kurzform fuer AVTransport-Aufrufe (InstanceID ist immer 0).
+    Befehle und Fehler werden protokolliert; die staendige Zustandsabfrage
+    (GetTransportInfo) nicht, damit das Protokoll lesbar bleibt.
+    """
+    leise = aktion == "GetTransportInfo"
+    if not leise:
+        # Nur kurze Werte zeigen (Metadaten-XML waere zu lang)
+        kurz = {k: v for k, v in argumente.items() if k != "CurrentURIMetaData"}
+        protokoll(f"→ {renderer.name}: {aktion} {kurz if kurz else ''}")
+    try:
+        ergebnis = soap_aufruf(renderer.avtransport_url, SERVICE_AVTRANSPORT, aktion,
+                               {"InstanceID": 0, **argumente})
+    except RuntimeError as exc:
+        protokoll(f"✗ {renderer.name}: {aktion} fehlgeschlagen: {exc}")
+        raise
+    if not leise:
+        protokoll(f"← {renderer.name}: {aktion} OK")
+    return ergebnis
 
 
 def hole_zustand(renderer: Renderer) -> str:
