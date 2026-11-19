@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.7.0 – 19.11.2026
+### Behoben
+- Kein Ton bei YouTube: `yt-dlp` konnte die JavaScript-Aufgaben von YouTube nicht lösen („Signature/n challenge
+  solving failed“, „Requested format is not available“). Jetzt wird die JavaScript-Laufzeit **deno** genutzt
+  (`--js-runtimes deno:<Pfad>`)
+### Hinzugefügt
+- `start.bat` lädt `deno.exe` in den Ordner `tools` und aktualisiert als Administrator `tools\yt-dlp.exe` (`-U`)
+- Windows-Paket aus GitHub Actions enthält `deno.exe`
+- Reiter Einstellungen zeigt, ob deno gefunden wurde; Hinweis im Protokoll, wenn es fehlt
+
 ## 0.6.0 – 19.11.2026
 ### Hinzugefügt
 - Aufklappbares Live-Protokoll unten im Fenster („▸ Protokoll anzeigen“), Hinweis „(Fehler!)“ bei zugeklapptem Protokoll

@@ -63,6 +63,19 @@ def cookie_argumente(browser: str, datei: str) -> list[str]:
     return []
 
 
+def js_runtime_argumente() -> list[str]:
+    """
+    yt-dlp braucht fuer YouTube eine JavaScript-Laufzeit, um die "Signature"-
+    und "n"-Aufgaben von YouTube zu loesen. Ohne sie liefert YouTube nur
+    Vorschaubilder ("Requested format is not available").
+    Liegt deno.exe im Ordner tools (oder im PATH), wird es yt-dlp ausdruecklich
+    mitgegeben. Die Loeser-Skripte (yt-dlp-ejs) sind laut yt-dlp-Hilfe in der
+    offiziellen yt-dlp.exe enthalten.
+    """
+    deno = finde_programm("deno")
+    return ["--js-runtimes", f"deno:{deno}"] if deno else []
+
+
 # ---------------------------------------------------------------------------
 # Titel-Liste aufbauen
 # ---------------------------------------------------------------------------
@@ -107,7 +120,7 @@ def titel_liste_aufbauen(eingaben: list[str], cookie_args: list[str],
             eintrag = f"ytsearch1:{eintrag}"
 
         befehl = [ytdlp, "--flat-playlist", "--ignore-errors", "--no-warnings",
-                  "--print", "%(id)s\t%(title)s", *cookie_args]
+                  "--print", "%(id)s\t%(title)s", *cookie_args, *js_runtime_argumente()]
         if einzeln:
             befehl.append("--no-playlist")
         befehl.append(eintrag)

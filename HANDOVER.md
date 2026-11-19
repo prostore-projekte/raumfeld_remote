@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.6.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 19.11.2026 · Version 0.7.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -76,7 +76,13 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   **Befund:** Auf dem Terminalserver gab es **keine Firewall-Regel** „Raumfeld Remote“ → sehr wahrscheinliche Ursache.
   Nutzer soll Regel setzen; `start.bat` legt sie ab 0.5.0 als Administrator selbst an.
   **Nachtrag:** Regel gesetzt – trotzdem **kein Ton**. Ursache weiter offen. 0.6.0: Live-Protokoll in der GUI
-  (UPnP-Befehle, Zustände, Abrufe, yt-dlp/ffmpeg-Fehler). Protokollinhalt vom Nutzer abwarten.
+  (UPnP-Befehle, Zustände, Abrufe, yt-dlp/ffmpeg-Fehler).
+  **Ursache gefunden (Protokoll des Nutzers):** Box ruft Stream ab (Netz/Firewall OK), aber yt-dlp meldet
+  „Signature/n challenge solving failed … JavaScript runtime“ und „Requested format is not available“ → 0 KB.
+  0.7.0: deno als JavaScript-Laufzeit (`--js-runtimes deno:PFAD`, Option in yt-dlp 2026.10.26 geprüft),
+  `start.bat` lädt deno und aktualisiert yt-dlp. Lokaler Test gegen YouTube nicht möglich (Sandbox-Freigabe verweigert).
+  Bestätigung „Ton da“ steht aus. Zusätzlich gemeldet: „SABR-only streaming experiment“ – Auswirkung unklar.
+- Der Konto-Test (Playlist „LM“) prüft nur das Lesen der Playlist, nicht das Abspielen – „Konto ok“ heißt nicht „Audio ok“.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
@@ -137,3 +143,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.4.1 | `start.bat`: schnellere Downloads (curl.exe bzw. PowerShell ohne Fortschrittsanzeige) |
 | 19.11.2026 | 0.5.0 | Diagnose „kein Ton“: Stream-Protokoll, Abruf-Prüfung nach 10 s, Fehler von yt-dlp/ffmpeg protokolliert |
 | 19.11.2026 | 0.6.0 | Aufklappbares Live-Protokoll, UPnP-Befehle/Zustände protokolliert, `protokoll.py` |
+| 19.11.2026 | 0.7.0 | Ursache „kein Ton“: yt-dlp ohne JavaScript-Laufzeit → deno ergänzt, yt-dlp-Update in `start.bat` |
