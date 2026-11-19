@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.1.1 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 19.11.2026 · Version 0.2.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -64,6 +64,8 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - ✘ **GUI nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
+- Ab 0.2.0: Workflow `.github/workflows/windows-build.yml` baut die .exe auf `windows-latest` und prüft pyflakes,
+  GUI-Import und einen 10-Sekunden-Starttest. Ergebnis siehe GitHub Actions (kein Test mit echter Hardware).
 
 ## 6. Unsicherheiten und Annahmen
 - Ob Raumfeld-Boxen in der Spotify-Geräteliste (Connect) erscheinen, ist **unbekannt** (hängt von Modell/Firmware ab). Die automatische Zuordnung Box ↔ Connect-Gerät per Namensvergleich ist eine **Annahme**.
@@ -88,7 +90,7 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 4. Prüfen, ob die Boxen per SSDP gefunden werden; sonst Geräte-URL manuell (Muster siehe Abschnitt 2).
 5. Spotify-App im Developer Dashboard anlegen, Redirect-URI eintragen, Client-ID einfügen, beide Wiedergabewege testen.
 6. Fehlende Funktionen (bewusst weggelassen): **Warteschlangenansicht**, **Fortschrittsanzeige**, Zonen-/Gruppenverwaltung von Raumfeld.
-7. Optional: `.exe` mit `build_exe.bat` bauen und testen.
+7. Fertige .exe aus GitHub Actions (Artifact „RaumfeldRemote-windows“) auf Windows 11 testen.
 
 ## 9. Arbeitsregeln des Nutzers (für Folgesitzungen)
 - Antworten auf Deutsch; bei Unsicherem das klar sagen, nichts erfinden, Annahmen kennzeichnen.
@@ -104,3 +106,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 |---|---|---|
 | 19.11.2026 | 0.1.0 | Erste Version gebaut (Zip) |
 | 19.11.2026 | 0.1.1 | Ins Repo eingepflegt; `CLAUDE.md`, `HANDOVER.md` ergänzt; README/CHANGELOG aktualisiert; gepusht, PR erstellt |
+| 19.11.2026 | 0.2.0 | Windows-Build per GitHub Actions (.exe + yt-dlp + ffmpeg als Zip), `.gitattributes`, `py`-Launcher |

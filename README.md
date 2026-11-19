@@ -4,7 +4,7 @@ Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern �
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.1.1 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.2.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -17,7 +17,16 @@ Rückmeldungen aus der Statuszeile beim ersten Start helfen bei der Fehlersuche.
 - **Konten-Menü**: YouTube (Browser-Anmeldung) und Spotify (OAuth)
 - Zurück / Pause / Stop / Weiter
 
-## Installation
+## Schnellstart unter Windows (fertige .exe, ohne Python)
+1. Auf GitHub im Repository den Reiter **Actions** öffnen → Workflow **Windows-Build** → letzten erfolgreichen Lauf (grüner Haken) anklicken.
+2. Unten bei **Artifacts** die Datei **RaumfeldRemote-windows** herunterladen (Anmeldung bei GitHub nötig) und entpacken.
+3. `RaumfeldRemote\RaumfeldRemote.exe` starten. `yt-dlp.exe` und `ffmpeg.exe` liegen bereits im Ordner `tools` daneben.
+4. Beim ersten Start die Windows-Firewall für **private Netzwerke** zulassen (siehe unten).
+
+Hinweis: Die .exe ist nicht signiert. Windows SmartScreen kann warnen → „Weitere Informationen“ → „Trotzdem ausführen“.
+Artefakte werden von GitHub nach einiger Zeit gelöscht (standardmäßig 90 Tage); dann den Workflow über „Run workflow“ neu starten.
+
+## Installation (mit Python, für Entwicklung)
 1. **Python 3.10+** von python.org installieren (Haken bei „Add Python to PATH“).
 2. `installieren.bat` ausführen (legt `.venv` an, installiert `customtkinter`).
 3. `yt-dlp` und `ffmpeg` installieren:
