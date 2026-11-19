@@ -7,10 +7,18 @@ Unterschied zum Linux-Skript:
   WSL, Hyper-V ...). Ein einzelner Multicast-Socket sendet dann gern ueber
   den falschen Adapter. Darum wird die Suche hier ueber JEDE lokale
   IPv4-Adresse einzeln gesendet.
+
+Suche ueber Netzgrenzen (Router/VPN):
+  Multicast (239.255.255.250) wird von Routern und VPN-Tunneln normalerweise
+  NICHT weitergeleitet. Fuer andere Subnetze (z. B. 192.168.20.0/24) wird
+  deshalb zusaetzlich eine Unicast-M-SEARCH an jede einzelne Adresse des
+  Netzes geschickt (UDP-Port 1900). Ob ein Geraet darauf antwortet, haengt
+  von seiner Firmware ab (UPnP 1.1 sieht es vor).
 """
 
 from __future__ import annotations
 
+import ipaddress
 import socket
 import time
 import urllib.error
@@ -89,10 +97,43 @@ def lokale_ip_zu(ziel_ip: str) -> str:
 # 1) Suche per SSDP
 # ---------------------------------------------------------------------------
 
-def ssdp_suche(timeout: float = 3.0) -> list[str]:
+# Obergrenze fuer die Unicast-Suche: mehr Adressen pro Netz werden nicht
+# angefragt (Schutz vor versehentlich riesigen Netzen wie 10.0.0.0/8).
+MAX_UNICAST_ADRESSEN = 1024
+
+
+def netz_adressen(netze: list[str]) -> list[str]:
+    """
+    Wandelt Netzangaben wie "192.168.20.0/24" oder "192.168.20.145" in eine
+    Liste einzelner Host-Adressen um. Ungueltige Angaben werden ignoriert.
+    """
+    adressen: list[str] = []
+    for angabe in netze:
+        angabe = angabe.strip()
+        if not angabe:
+            continue
+        try:
+            # strict=False: auch "192.168.20.5/24" wird als Netz 192.168.20.0/24 akzeptiert
+            netz = ipaddress.ip_network(angabe, strict=False)
+        except ValueError:
+            continue
+        if netz.version != 4:
+            continue
+        # Einzelne Adresse (/32) hat keine hosts() -> direkt uebernehmen
+        hosts = list(netz.hosts()) or [netz.network_address]
+        for ip in hosts[:MAX_UNICAST_ADRESSEN]:
+            if str(ip) not in adressen:
+                adressen.append(str(ip))
+    return adressen
+
+
+def ssdp_suche(timeout: float = 3.0, zusatz_netze: list[str] | None = None) -> list[str]:
     """
     Sendet eine SSDP-M-SEARCH-Anfrage ueber alle lokalen Adapter und
     sammelt die LOCATION-URLs der antwortenden MediaRenderer.
+
+    zusatz_netze: Netze ausserhalb des eigenen Subnetzes (z. B. hinter
+    einem VPN). Dorthin geht die Anfrage per Unicast an jede Adresse.
     """
     anfrage = (
         "M-SEARCH * HTTP/1.1\r\n"
@@ -132,6 +173,23 @@ def ssdp_suche(timeout: float = 3.0) -> list[str]:
                 s.sendto(anfrage, SSDP_ADDR)
             except OSError:
                 pass
+
+    # Unicast-Suche in weiteren Netzen: eigener, nicht gebundener Socket,
+    # damit Windows die Route (z. B. ueber den VPN-Adapter) selbst waehlt.
+    ziele = netz_adressen(zusatz_netze or [])
+    if ziele:
+        uni = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        uni.settimeout(0.3)
+        sockets.append(uni)
+        alt_host = f"HOST: {SSDP_ADDR[0]}:{SSDP_ADDR[1]}".encode("ascii")
+        for _ in range(2):
+            for ip in ziele:
+                # Bei Unicast nennt HOST die Zieladresse (UPnP 1.1)
+                einzel = anfrage.replace(alt_host, f"HOST: {ip}:{SSDP_ADDR[1]}".encode("ascii"))
+                try:
+                    uni.sendto(einzel, (ip, SSDP_ADDR[1]))
+                except OSError:
+                    pass  # z. B. Netz nicht erreichbar -> naechste Adresse
 
     locations: list[str] = []
     ende = time.monotonic() + timeout
@@ -185,12 +243,24 @@ def renderer_laden(location: str) -> Renderer | None:
                     avtransport_url=avt_url, rendering_url=rc_url)
 
 
-def renderer_suchen(timeout: float = 3.0) -> list[Renderer]:
-    """Suche + Beschreibung laden; nach Namen sortiert."""
-    gefunden = []
-    for loc in ssdp_suche(timeout):
+def renderer_suchen(timeout: float = 3.0, zusatz_netze: list[str] | None = None,
+                    bekannte_urls: list[str] | None = None) -> list[Renderer]:
+    """
+    Suche + Beschreibung laden; nach Namen sortiert.
+
+    bekannte_urls: Geraete-URLs, die direkt abgefragt werden (z. B. manuell
+    eingetragene oder zuletzt benutzte Lautsprecher). So erscheinen Geraete
+    auch dann, wenn sie auf keine SSDP-Anfrage antworten.
+    """
+    locations = ssdp_suche(timeout, zusatz_netze)
+    for url in bekannte_urls or []:
+        if url and url not in locations:
+            locations.append(url)
+    gefunden: list[Renderer] = []
+    for loc in locations:
         r = renderer_laden(loc)
-        if r:
+        # Doppelte vermeiden (gleiches Geraet unter mehreren URLs)
+        if r and all(x.avtransport_url != r.avtransport_url for x in gefunden):
             gefunden.append(r)
     return sorted(gefunden, key=lambda r: r.name.lower())
 

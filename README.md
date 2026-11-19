@@ -4,7 +4,7 @@ Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern �
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.2.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.3.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -37,6 +37,17 @@ Artefakte werden von GitHub nach einiger Zeit gelöscht (standardmäßig 90 Tage
    Alternativ die `.exe`-Dateien in den Ordner `tools` neben `start.pyw` legen.
    (Die winget-Paketnamen sind nach meinem Wissen korrekt, bitte bei Fehlern mit `winget search` prüfen.)
 4. `start.bat` ausführen (oder `python -m raumfeld_remote`).
+
+## Lautsprecher in einem anderen Netz (Router/VPN)
+Die automatische Suche nutzt Multicast; das wird von Routern und VPN-Verbindungen normalerweise nicht weitergeleitet.
+Stehen die Lautsprecher in einem anderen Netz (z. B. PC in `192.168.10.0/24`, Lautsprecher in `192.168.20.0/24`):
+1. Reiter **Einstellungen** → **Weitere Netze**: `192.168.20.0/24` eintragen (mehrere mit Komma) → **Speichern**.
+2. **Im Netzwerk suchen**. Das Programm fragt dann jede Adresse dieses Netzes einzeln an.
+3. Antworten die Lautsprecher darauf nicht (hängt von der Firmware ab), die Geräte-URL manuell eintragen.
+   Manuell eingetragene Geräte werden gespeichert und bei jeder Suche wieder abgefragt.
+
+Wichtig: Der Lautsprecher muss den PC umgekehrt auch erreichen (Stream-Port, Standard 8765) –
+Routing über das VPN und die Windows-Firewall müssen das zulassen.
 
 ## Windows-Firewall
 Der Lautsprecher muss den Stream-Server auf deinem PC erreichen (Standard: TCP-Port 8765).

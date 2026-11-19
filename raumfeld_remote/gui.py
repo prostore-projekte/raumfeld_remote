@@ -29,8 +29,8 @@ from .quellen import (KEIN_FENSTER, Titel, cookie_argumente, finde_programm,
                       titel_liste_aufbauen)
 from .spotify import Spotify, SpotifyFehler, playlist_id_aus_text
 from .stream_server import StreamServer
-from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, renderer_laden,
-                   renderer_suchen, setze_lautstaerke)
+from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
+                   renderer_laden, renderer_suchen, setze_lautstaerke)
 
 BROWSER_AUSWAHL = ["keiner", "firefox", "chrome", "edge", "brave",
                    "chromium", "opera", "vivaldi"]
@@ -310,9 +310,15 @@ class App(ctk.CTk):
         self.opt_bitrate.set(self.einst["bitrate"])
         self.opt_bitrate.grid(row=1, column=1, sticky="w")
 
+        # Weitere Netze fuer die Suche (Lautsprecher hinter Router/VPN)
+        ctk.CTkLabel(tab, text="Weitere Netze:").grid(row=2, column=0, sticky="w", padx=12, pady=6)
+        self.ent_netze = ctk.CTkEntry(tab, placeholder_text="z. B. 192.168.20.0/24 (mehrere mit Komma)")
+        self.ent_netze.insert(0, ", ".join(self.einst["such_netze"]))
+        self.ent_netze.grid(row=2, column=1, sticky="ew", padx=(0, 12))
+
         ctk.CTkButton(tab, text="Speichern", width=120,
                       command=self._einstellungen_speichern
-                      ).grid(row=2, column=0, sticky="w", padx=12, pady=10)
+                      ).grid(row=3, column=0, sticky="w", padx=12, pady=10)
 
         # Programm-Status: ffmpeg und yt-dlp muessen vorhanden sein
         ffmpeg = finde_programm("ffmpeg")
@@ -323,14 +329,14 @@ class App(ctk.CTk):
             "Fehlt etwas: in der Eingabeaufforderung  winget install yt-dlp.yt-dlp  und\n"
             "winget install Gyan.FFmpeg  ausführen (danach Programm neu starten),\n"
             "oder die .exe-Dateien in den Ordner „tools“ neben dieser Anwendung legen."
-        )).grid(row=3, column=0, columnspan=2, sticky="ew", padx=12, pady=6)
+        )).grid(row=4, column=0, columnspan=2, sticky="ew", padx=12, pady=6)
 
         ctk.CTkLabel(tab, anchor="w",
                      text="Windows-Firewall: Lässt Windows die Lautsprecher nicht auf den Stream "
                           "zugreifen,\nin einer Eingabeaufforderung als Administrator ausführen:"
-                     ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=12, pady=(14, 2))
+                     ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=12, pady=(14, 2))
         self.txt_firewall = ctk.CTkTextbox(tab, height=60, wrap="word")
-        self.txt_firewall.grid(row=5, column=0, columnspan=2, sticky="ew", padx=12)
+        self.txt_firewall.grid(row=6, column=0, columnspan=2, sticky="ew", padx=12)
         self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=self.einst["port"]))
 
     # ------------------------------------------------------------ Player-Leiste
@@ -362,7 +368,12 @@ class App(ctk.CTk):
         self._status("Suche Lautsprecher im Netzwerk …")
 
         def arbeit() -> None:
-            gefunden = renderer_suchen(timeout=4.0)
+            # Zusaetzlich: Netze hinter Router/VPN per Unicast absuchen und
+            # bekannte Geraete-URLs (manuell + zuletzt benutzt) direkt abfragen
+            bekannte = list(self.einst["manuelle_boxen"]) + [self.einst["letzte_box"]]
+            gefunden = renderer_suchen(timeout=4.0,
+                                       zusatz_netze=list(self.einst["such_netze"]),
+                                       bekannte_urls=bekannte)
             self._ui(lambda: self._boxen_anzeigen(gefunden))
         self._hintergrund(arbeit)
 
@@ -377,7 +388,8 @@ class App(ctk.CTk):
             widget.destroy()
         if not self.boxen:
             ctk.CTkLabel(self.box_liste, justify="left", text_color=("gray35", "gray65"),
-                         text="Nichts gefunden.\nGleiches Netzwerk? Firewall?\n"
+                         text="Nichts gefunden.\nAnderes Netz (VPN)? Dann unter\n"
+                              "„Einstellungen“ das Netz der\nLautsprecher eintragen.\n"
                               "Notfalls die Geräte-URL\nmanuell eintragen."
                          ).pack(padx=6, pady=6)
             self._status("Keine Lautsprecher gefunden.")
@@ -404,6 +416,11 @@ class App(ctk.CTk):
                 self._status("Unter dieser URL wurde kein nutzbares Gerät gefunden.")
                 return
             r.manuell = True  # type: ignore[attr-defined]
+            # URL dauerhaft merken, damit das Geraet bei jeder Suche wieder erscheint
+            liste = list(self.einst["manuelle_boxen"])
+            if url not in liste:
+                liste.append(url)
+                self.einst["manuelle_boxen"] = liste
             def eintragen() -> None:
                 self.boxen = [x for x in self.boxen if x.location != r.location] + [r]
                 self._boxen_anzeigen(list(self.boxen))
@@ -795,8 +812,16 @@ class App(ctk.CTk):
         except ValueError:
             messagebox.showerror("Einstellungen", "Der Port muss zwischen 1024 und 65535 liegen.")
             return
+        # Weitere Netze pruefen: jede Angabe muss ein gueltiges IPv4-Netz sein
+        netze = [n.strip() for n in self.ent_netze.get().replace(";", ",").split(",") if n.strip()]
+        ungueltig = [n for n in netze if not netz_adressen([n])]
+        if ungueltig:
+            messagebox.showerror("Einstellungen", "Ungültige Netzangabe: " + ", ".join(ungueltig)
+                                 + "\nBeispiel: 192.168.20.0/24")
+            return
         self.einst["port"] = port
         self.einst["bitrate"] = self.opt_bitrate.get()
+        self.einst["such_netze"] = netze
         self.txt_firewall.delete("1.0", "end")
         self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=port))
         self._status("Einstellungen gespeichert (gelten ab dem nächsten Abspielen).")

@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.2.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 19.11.2026 · Version 0.3.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
