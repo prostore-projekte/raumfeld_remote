@@ -64,7 +64,10 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - ✔ Windows 11 (Nutzer, 19.11.2026): `installieren.bat` läuft durch (customtkinter 6.0.0), Programm startet, Suche findet aber nur einen Samsung-TV
 - ✔ Unicast-Suche (0.3.0): Nutzer meldet „Läuft“ (Boxen über VPN gefunden)
 - ✔ 0.4.0: Zwei-Ebenen-Einstellungen lokal getestet (anderer Benutzer sieht gemeinsame Werte); `start.bat` wird im
-  Windows-Build von frischem Stand getestet. Auf echtem Terminalserver mit mehreren Benutzern **ungetestet**
+  Windows-Build von frischem Stand getestet.
+  CI-Lauf 1: Installation durch `start.bat` erfolgreich, danach lief aber kein `pythonw` mehr (Ursache offen) →
+  `start.pyw` schreibt jetzt Startfehler nach `%APPDATA%\RaumfeldRemote\fehler.log`, CI gibt es aus.
+  Auf echtem Terminalserver mit mehreren Benutzern **ungetestet**.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet

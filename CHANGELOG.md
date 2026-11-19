@@ -12,6 +12,7 @@ MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 - Stream-Server weicht bei belegtem Port automatisch auf den nächsten freien aus (mehrere Sitzungen gleichzeitig)
 - `start.bat` prüft Python, `.venv`, Pakete, `yt-dlp` und `ffmpeg` und installiert Fehlendes nach
 - Windows-Build testet zusätzlich `start.bat` von einem frischen Stand aus
+- Startfehler werden nicht mehr verschluckt: Meldungsfenster und Protokoll `%APPDATA%\RaumfeldRemote\fehler.log`
 ### Geändert
 - Firewall-Befehl gilt für den Port-Bereich 8765–8814 und die Profile „Privat“ und „Domäne“
 - Spotify-Token: Schreibfehler (z. B. gemeinsames Token ohne Schreibrechte) führen nicht mehr zum Abbruch

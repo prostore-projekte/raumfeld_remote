@@ -69,14 +69,17 @@ jobs:
           if errorlevel 1 exit /b 1
           if not exist tools\yt-dlp.exe exit /b 1
           if not exist tools\ffmpeg.exe exit /b 1
-
-      - name: Pruefen, ob die per start.bat gestartete Oberflaeche laeuft
-        run: |
-          Start-Sleep -Seconds 10
-          $p = Get-Process pythonw -ErrorAction SilentlyContinue
-          if (-not $p) { Write-Error "pythonw (Raumfeld Remote) laeuft nicht"; exit 1 }
-          $p | Stop-Process -Force
-          Write-Host "start.bat-Test OK"
+          rem 10 Sekunden warten, dann muss pythonw (die Oberflaeche) noch laufen
+          ping -n 11 127.0.0.1 >nul
+          tasklist /FI "IMAGENAME eq pythonw.exe" | find /I "pythonw.exe" && goto ok
+          echo FEHLER: pythonw laeuft nicht. Fehlerprotokoll:
+          type "%APPDATA%\RaumfeldRemote\fehler.log"
+          echo Direkter Start mit Konsole zur Diagnose:
+          .venv\Scripts\python.exe -c "import raumfeld_remote.gui"
+          exit /b 1
+          :ok
+          taskkill /F /IM pythonw.exe >nul
+          echo start.bat-Test OK
 
       - uses: actions/upload-artifact@v4
         with:

@@ -34,6 +34,7 @@ Artefakte werden von GitHub nach einiger Zeit gelöscht (standardmäßig 90 Tage
 3. `yt-dlp.exe` und `ffmpeg.exe` – werden in den Ordner `tools` heruntergeladen, falls sie weder dort noch im PATH liegen
 
 Ist alles vorhanden, startet das Programm sofort ohne Konsolenfenster. Bei Fehlern bleibt das Fenster mit einer Meldung offen.
+Stürzt das Programm beim Start ab, erscheint eine Meldung; der Fehler steht in `%APPDATA%\RaumfeldRemote\fehler.log`.
 (`installieren.bat` gibt es weiterhin, wird aber nicht mehr benötigt.)
 
 ## Terminalserver (mehrere Benutzer)
