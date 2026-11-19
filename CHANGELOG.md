@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.3.0 – 19.11.2026
+### Hinzugefügt
+- Lautsprechersuche über Netzgrenzen (Router/VPN): Einstellung „Weitere Netze“ (z. B. `192.168.20.0/24`);
+  dorthin wird die SSDP-Anfrage per Unicast an jede Adresse geschickt
+- Manuell eingetragene Geräte-URLs werden gespeichert und bei jeder Suche erneut abgefragt,
+  ebenso der zuletzt benutzte Lautsprecher
+### Geändert
+- Hinweistext bei „Nichts gefunden“ nennt die neue Einstellung
+
+## 0.2.0 – 19.11.2026
+### Hinzugefügt
+- GitHub-Actions-Workflow „Windows-Build“: baut auf Windows `RaumfeldRemote.exe` (PyInstaller), legt `yt-dlp.exe` und
+  `ffmpeg.exe` in den Ordner `tools` und stellt alles als Zip zum Download bereit; inklusive Import- und Starttest
+- README: Schnellstart mit der fertigen .exe
+### Geändert
+- `installieren.bat` bevorzugt den Python-Launcher `py`
+- `.gitattributes`: `.bat`-Dateien mit Windows-Zeilenenden (CRLF)
+
 ## 0.1.1 – 19.11.2026
 ### Hinzugefügt
 - `CLAUDE.md`: Arbeitsanweisungen für Claude (token-sparendes Vorgehen, Code-Regeln, Pflichtschritte)

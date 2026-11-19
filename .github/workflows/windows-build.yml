@@ -1,0 +1,65 @@
+# Baut Raumfeld Remote auf einem Windows-Rechner von GitHub zu einer fertigen .exe
+# und packt yt-dlp.exe und ffmpeg.exe in den Ordner "tools" daneben.
+# Ergebnis: Zip-Datei "RaumfeldRemote-windows" unter Actions -> Lauf -> Artifacts.
+name: Windows-Build
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:   # manuell startbar ueber den Reiter "Actions"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhaengigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pyflakes
+
+      - name: Pruefen (Syntax, pyflakes, Import der GUI)
+        run: |
+          python -m pyflakes raumfeld_remote
+          # Import laedt tkinter/customtkinter, oeffnet aber noch kein Fenster
+          python -c "import raumfeld_remote.gui as g; import raumfeld_remote; print('Version', raumfeld_remote.__version__)"
+
+      - name: .exe bauen (PyInstaller)
+        run: pyinstaller --noconsole --onefile --name RaumfeldRemote --collect-all customtkinter start.pyw
+
+      - name: yt-dlp und ffmpeg herunterladen
+        run: |
+          $paket = "paket/RaumfeldRemote"
+          New-Item -ItemType Directory -Force "$paket/tools" | Out-Null
+          Copy-Item dist/RaumfeldRemote.exe $paket
+          Copy-Item README.md, CHANGELOG.md $paket
+          # yt-dlp: offizielle Windows-Datei der letzten Version
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile "$paket/tools/yt-dlp.exe"
+          # ffmpeg: Windows-Build von BtbN (GPL), nur ffmpeg.exe und ffprobe.exe uebernehmen
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
+          Get-ChildItem ffmpeg_tmp -Recurse -Include ffmpeg.exe, ffprobe.exe | Copy-Item -Destination "$paket/tools"
+          & "$paket/tools/yt-dlp.exe" --version
+          & "$paket/tools/ffmpeg.exe" -hide_banner -version | Select-Object -First 1
+
+      - name: Starttest der .exe (10 Sekunden, darf nicht abstuerzen)
+        run: |
+          $p = Start-Process paket/RaumfeldRemote/RaumfeldRemote.exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { Write-Error "RaumfeldRemote.exe wurde vorzeitig beendet (Code $($p.ExitCode))"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "Starttest OK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RaumfeldRemote-windows
+          path: paket/

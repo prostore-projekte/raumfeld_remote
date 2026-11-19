@@ -36,6 +36,8 @@ STANDARD: dict = {
     "nur_einzeltitel": False,        # Checkbox "Nur diesen Titel"
     "zufall": False,                 # Checkbox "Zufaellige Reihenfolge"
     "favoriten": [],                 # Liste aus {"name": ..., "url": ...}
+    "such_netze": [],                # weitere Netze fuer die Suche, z. B. ["192.168.20.0/24"]
+    "manuelle_boxen": [],            # manuell eingetragene Geraete-URLs (bei jeder Suche abgefragt)
 }
 
 

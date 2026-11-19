@@ -1,0 +1,2 @@
+# Windows-Batchdateien immer mit CRLF auschecken, sonst kann cmd.exe sie falsch lesen
+*.bat text eol=crlf
