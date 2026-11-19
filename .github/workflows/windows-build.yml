@@ -59,6 +59,25 @@ jobs:
           Stop-Process -Id $p.Id -Force
           Write-Host "Starttest OK"
 
+      - name: start.bat testen (Pruefung + Nachinstallation + Start)
+        shell: cmd
+        run: |
+          rem Frischer Zustand: keine .venv, kein tools-Ordner -> start.bat muss alles nachinstallieren
+          if exist .venv rmdir /s /q .venv
+          if exist tools rmdir /s /q tools
+          call start.bat
+          if errorlevel 1 exit /b 1
+          if not exist tools\yt-dlp.exe exit /b 1
+          if not exist tools\ffmpeg.exe exit /b 1
+
+      - name: Pruefen, ob die per start.bat gestartete Oberflaeche laeuft
+        run: |
+          Start-Sleep -Seconds 10
+          $p = Get-Process pythonw -ErrorAction SilentlyContinue
+          if (-not $p) { Write-Error "pythonw (Raumfeld Remote) laeuft nicht"; exit 1 }
+          $p | Stop-Process -Force
+          Write-Host "start.bat-Test OK"
+
       - uses: actions/upload-artifact@v4
         with:
           name: RaumfeldRemote-windows

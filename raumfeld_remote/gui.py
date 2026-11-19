@@ -23,7 +23,7 @@ from typing import Callable
 
 import customtkinter as ctk
 
-from .einstellungen import Einstellungen, konfig_ordner
+from .einstellungen import Einstellungen, gemeinsamer_ordner, konfig_ordner
 from .player import Wiedergabe
 from .quellen import (KEIN_FENSTER, Titel, cookie_argumente, finde_programm,
                       titel_liste_aufbauen)
@@ -36,8 +36,12 @@ BROWSER_AUSWAHL = ["keiner", "firefox", "chrome", "edge", "brave",
                    "chromium", "opera", "vivaldi"]
 BITRATEN = ["128k", "192k", "256k", "320k"]
 
+# Auf einem Terminalserver braucht jede Sitzung einen eigenen Stream-Port:
+# ist der eingestellte Port belegt, wird der naechste freie aus diesem Bereich genommen.
+PORT_BEREICH = 50
+# Firewall-Regel fuer den ganzen Port-Bereich; "domain" fuer Server im Firmennetz
 FIREWALL_BEFEHL = ('netsh advfirewall firewall add rule name="Raumfeld Remote" '
-                   'dir=in action=allow protocol=TCP localport={port} profile=private')
+                   'dir=in action=allow protocol=TCP localport={port}-{ende} profile=private,domain')
 
 
 class App(ctk.CTk):
@@ -56,9 +60,14 @@ class App(ctk.CTk):
         self.boxen: list[Renderer] = []            # gefundene Lautsprecher
         self.gewaehlt: Renderer | None = None      # aktuell gewaehlter Lautsprecher
         self.server: StreamServer | None = None
+        self._server_basisport = 0                 # eingestellter Port beim Serverstart
         self.player: Wiedergabe | None = None
-        self.spotify = Spotify(konfig_ordner() / "spotify_token.json",
-                               self.einst["spotify_client_id"])
+        # Spotify-Token: eigenes Token des Benutzers, sonst ein "fuer alle" gespeichertes
+        eigenes_token = konfig_ordner() / "spotify_token.json"
+        gemeinsames_token = gemeinsamer_ordner() / "spotify_token.json"
+        token_datei = (gemeinsames_token if not eigenes_token.exists() and gemeinsames_token.exists()
+                       else eigenes_token)
+        self.spotify = Spotify(token_datei, self.einst["spotify_client_id"])
         self.modus = "upnp"                        # "upnp" (YouTube) oder "spotify"
         self.spotify_geraete: dict[str, str] = {}  # Anzeigename -> Geraete-ID
         self.pausiert = False
@@ -319,6 +328,10 @@ class App(ctk.CTk):
         ctk.CTkButton(tab, text="Speichern", width=120,
                       command=self._einstellungen_speichern
                       ).grid(row=3, column=0, sticky="w", padx=12, pady=10)
+        # Fuer alle Benutzer speichern (Terminalserver): Netze, Geraete, Konten, Stream-Optionen
+        ctk.CTkButton(tab, text="Für alle Benutzer speichern", width=200,
+                      command=self._fuer_alle_speichern
+                      ).grid(row=3, column=1, sticky="w", pady=10)
 
         # Programm-Status: ffmpeg und yt-dlp muessen vorhanden sein
         ffmpeg = finde_programm("ffmpeg")
@@ -337,7 +350,8 @@ class App(ctk.CTk):
                      ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=12, pady=(14, 2))
         self.txt_firewall = ctk.CTkTextbox(tab, height=60, wrap="word")
         self.txt_firewall.grid(row=6, column=0, columnspan=2, sticky="ew", padx=12)
-        self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=self.einst["port"]))
+        self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=self.einst["port"],
+                                                            ende=self.einst["port"] + PORT_BEREICH - 1))
 
     # ------------------------------------------------------------ Player-Leiste
     def _baue_playerleiste(self) -> None:
@@ -556,16 +570,25 @@ class App(ctk.CTk):
         """Startet den Stream-Server (oder startet ihn bei neuem Port/Bitrate neu)."""
         port = int(self.einst["port"])
         bitrate = self.einst["bitrate"]
-        if self.server and (self.server.port != port or self.server.bitrate != bitrate):
+        # Vergleich mit dem eingestellten Basis-Port (der Server laeuft evtl. auf einem hoeheren)
+        if self.server and (self._server_basisport != port or self.server.bitrate != bitrate):
             if self.player:
                 self.player.beenden()
             self.server.beenden()
             self.server = None
         if self.server is None:
-            try:
-                self.server = StreamServer(port, bitrate, self._cookie_args())
-            except OSError as exc:
-                raise RuntimeError(f"Port {port} kann nicht geöffnet werden: {exc}") from exc
+            # Freien Port suchen (mehrere Sitzungen auf einem Terminalserver)
+            letzter_fehler: OSError | None = None
+            for kandidat in range(port, min(port + PORT_BEREICH, 65536)):
+                try:
+                    self.server = StreamServer(kandidat, bitrate, self._cookie_args())
+                    break
+                except OSError as exc:
+                    letzter_fehler = exc
+            if self.server is None:
+                raise RuntimeError(f"Kein freier Port zwischen {port} und {port + PORT_BEREICH - 1}: "
+                                   f"{letzter_fehler}")
+            self._server_basisport = port
             self.server.starten()
         self.server.cookie_args = self._cookie_args()  # evtl. geaenderte Anmeldung
         return self.server
@@ -819,12 +842,44 @@ class App(ctk.CTk):
             messagebox.showerror("Einstellungen", "Ungültige Netzangabe: " + ", ".join(ungueltig)
                                  + "\nBeispiel: 192.168.20.0/24")
             return
-        self.einst["port"] = port
-        self.einst["bitrate"] = self.opt_bitrate.get()
-        self.einst["such_netze"] = netze
+        # Nur geaenderte Werte setzen: unveraenderte Werte bleiben so weiterhin
+        # die gemeinsamen (fuer alle Benutzer) und werden nicht ueberdeckt.
+        neu = {"port": port, "bitrate": self.opt_bitrate.get(), "such_netze": netze}
+        for schluessel, wert in neu.items():
+            if self.einst[schluessel] != wert:
+                self.einst[schluessel] = wert
         self.txt_firewall.delete("1.0", "end")
-        self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=port))
+        self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=port, ende=port + PORT_BEREICH - 1))
         self._status("Einstellungen gespeichert (gelten ab dem nächsten Abspielen).")
+
+    def _fuer_alle_speichern(self) -> None:
+        """
+        Speichert Netze, Geraete, Konten-Einstellungen und Stream-Optionen in
+        die gemeinsame Datei (alle Benutzer). Ein eventuelles Spotify-Token
+        wird mitkopiert. Braucht Schreibrechte (meist Administrator).
+        """
+        self._einstellungen_speichern()  # zuerst die Eingaben im Reiter uebernehmen
+        if not messagebox.askyesno(
+                "Für alle Benutzer speichern",
+                "Netze, Geräte, Favoriten, YouTube-Anmeldung, Spotify-Client-ID und "
+                "Stream-Einstellungen gelten danach für alle Benutzer dieses Rechners.\n\n"
+                "Ist Spotify angemeldet, wird auch die Anmeldung geteilt – alle Benutzer "
+                "steuern dann dasselbe Spotify-Konto.\n\nFortfahren?"):
+            return
+        try:
+            pfad = self.einst.fuer_alle_speichern()
+            eigenes_token = konfig_ordner() / "spotify_token.json"
+            if eigenes_token.exists():
+                # Token kopieren; Datei ist danach fuer alle lesbar (nicht verschluesselt)
+                (pfad.parent / "spotify_token.json").write_bytes(eigenes_token.read_bytes())
+        except OSError as exc:
+            messagebox.showerror(
+                "Für alle Benutzer speichern",
+                f"Keine Schreibrechte auf\n{self.einst.gemeinsame_datei.parent}\n\n"
+                "Das Programm einmal als Administrator starten und erneut speichern.\n\n"
+                f"Fehler: {exc}")
+            return
+        self._status(f"Für alle Benutzer gespeichert: {pfad}")
 
     # ====================================================================
     # Beenden
