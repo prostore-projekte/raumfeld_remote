@@ -69,6 +69,8 @@ jobs:
           if errorlevel 1 exit /b 1
           if not exist tools\yt-dlp.exe exit /b 1
           if not exist tools\ffmpeg.exe exit /b 1
+          rem Runner laeuft als Administrator -> start.bat muss die Firewall-Regel angelegt haben
+          netsh advfirewall firewall show rule name="Raumfeld Remote" | find "8765-8814" || exit /b 1
           rem 10 Sekunden warten, dann muss pythonw (die Oberflaeche) noch laufen
           ping -n 11 127.0.0.1 >nul
           tasklist /FI "IMAGENAME eq pythonw.exe" | find /I "pythonw.exe" && goto ok

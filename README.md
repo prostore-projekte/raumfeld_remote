@@ -32,6 +32,7 @@ Artefakte werden von GitHub nach einiger Zeit gelöscht (standardmäßig 90 Tage
    ohne winget bitte von python.org installieren, Haken bei „Add python.exe to PATH“)
 2. virtuelle Umgebung `.venv` und die Pakete aus `requirements.txt`
 3. `yt-dlp.exe` und `ffmpeg.exe` – werden in den Ordner `tools` heruntergeladen, falls sie weder dort noch im PATH liegen
+4. Firewall-Regel „Raumfeld Remote“ (TCP 8765–8814) – wird angelegt, wenn `start.bat` als Administrator läuft
    (ffmpeg ca. 200 MB, je nach Leitung einige Minuten)
 
 Ist alles vorhanden, startet das Programm sofort ohne Konsolenfenster. Bei Fehlern bleibt das Fenster mit einer Meldung offen.
@@ -41,7 +42,8 @@ Stürzt das Programm beim Start ab, erscheint eine Meldung; der Fehler steht in 
 ## Terminalserver (mehrere Benutzer)
 1. Programmordner an einen gemeinsamen Ort legen, z. B. `C:\Programme\RaumfeldRemote`.
 2. Python **für alle Benutzer** installieren („Install for all users“).
-3. `start.bat` **einmal als Administrator** ausführen – installiert alles in den Programmordner.
+3. `start.bat` **einmal als Administrator** ausführen – installiert alles in den Programmordner und legt die
+   Firewall-Regel an (ohne sie spielt die Anzeige, aber es ist nichts zu hören).
    Danach starten alle Benutzer über `start.bat` (z. B. per Verknüpfung) ohne Installation.
 4. Als Administrator Einstellungen vornehmen (weitere Netze, Lautsprecher, Konten) und im Reiter
    **Einstellungen** auf **„Für alle Benutzer speichern“** klicken.

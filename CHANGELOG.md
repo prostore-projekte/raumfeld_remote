@@ -9,6 +9,8 @@ MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
   Fehlermeldungen von `yt-dlp`/`ffmpeg` (wurden bisher verworfen); Schaltfläche „Stream-Protokoll öffnen“
 - Meldung in der Statuszeile, wenn der Lautsprecher den Stream 10 Sekunden nach dem Start nicht abgerufen hat
 - README: Abschnitt zur Fehlersuche „Anzeige läuft, aber nichts zu hören“
+- `start.bat` legt die Firewall-Regel „Raumfeld Remote“ (TCP 8765–8814, Privat/Domäne) an, wenn sie fehlt
+  und `start.bat` als Administrator läuft
 
 ## 0.4.1 – 19.11.2026
 ### Behoben

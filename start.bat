@@ -102,6 +102,17 @@ if exist "tools\%~1.exe" exit /b 0
 where %~1 >nul 2>&1
 exit /b %errorlevel%
 
+:firewall
+rem Eingehende Firewall-Regel fuer den Stream-Server (sonst kann der Lautsprecher
+rem den Stream nicht abrufen: Anzeige "spielt", aber kein Ton). Anlegen geht nur
+rem als Administrator; ohne Adminrechte wird still weitergemacht.
+rem Bereich 8765-8814 = Standard-Port plus 50 (mehrere Terminalserver-Sitzungen).
+netsh advfirewall firewall show rule name="Raumfeld Remote" | findstr /C:"Raumfeld Remote" >nul && exit /b 0
+net session >nul 2>&1 || exit /b 0
+echo [Firewall] Regel "Raumfeld Remote" wird angelegt: TCP 8765-8814, Profile Privat und Domaene ...
+netsh advfirewall firewall add rule name="Raumfeld Remote" dir=in action=allow protocol=TCP localport=8765-8814 profile=private,domain >nul
+exit /b 0
+
 :python_suchen
 rem Setzt PY auf einen funktionierenden Python-Aufruf (3.10+), sonst leer.
 rem "python" allein kann der Microsoft-Store-Platzhalter sein -> mit Testaufruf pruefen.

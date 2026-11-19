@@ -72,7 +72,9 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - Nutzer (Terminalserver): ffmpeg-Download über PowerShell 5.1 sehr langsam (Fortschrittsanzeige) → 0.4.1 nutzt `curl.exe`.
 - **Offen (Nutzer, Terminalserver):** Lautstärke regeln funktioniert, YouTube-Konto-Test ok, Anzeige „spielt“, aber **kein Ton**.
   Ursache unbekannt. Vermutung: Box erreicht den Stream-Server auf dem Terminalserver nicht (Firewall/VPN-Routing)
-  oder yt-dlp/ffmpeg scheitern. 0.5.0 bringt Diagnose (Stream-Protokoll, Abruf-Prüfung) – Ergebnis abwarten.
+  oder yt-dlp/ffmpeg scheitern. 0.5.0 bringt Diagnose (Stream-Protokoll, Abruf-Prüfung).
+  **Befund:** Auf dem Terminalserver gab es **keine Firewall-Regel** „Raumfeld Remote“ → sehr wahrscheinliche Ursache.
+  Nutzer soll Regel setzen; `start.bat` legt sie ab 0.5.0 als Administrator selbst an. Bestätigung „Ton da“ steht aus.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
