@@ -61,13 +61,19 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 ## 5. Teststand (ehrlich)
 - ✔ Syntaxprüfung aller Dateien, `pyflakes` ohne Befund
 - ✔ Stream-Server mit lokaler WAV-Datei → lieferte gültigen MP3-Stream (Linux-Sandbox)
-- ✘ **GUI nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
+- ✔ Windows 11 (Nutzer, 19.11.2026): `installieren.bat` läuft durch (customtkinter 6.0.0), Programm startet, Suche findet aber nur einen Samsung-TV
+- ✔ Unicast-Suche (0.3.0) lokal mit simuliertem SSDP-Gerät getestet; mit echten Raumfeld-Boxen über VPN **ungetestet**
+- ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
 - Ab 0.2.0: Workflow `.github/workflows/windows-build.yml` baut die .exe auf `windows-latest` und prüft pyflakes,
   GUI-Import und einen 10-Sekunden-Starttest. Ergebnis siehe GitHub Actions (kein Test mit echter Hardware).
 
 ## 6. Unsicherheiten und Annahmen
+- **Netz des Nutzers:** PC in `192.168.10.0/24`, Lautsprecher in `192.168.20.0/24`, verbunden per VPN; Ping 10 → 20 geht.
+  Multicast-SSDP kommt nicht über das VPN → Lösung 0.3.0: Unicast-M-SEARCH. Ob Raumfeld-Boxen auf Unicast antworten, ist **unbekannt**.
+  Ob die Boxen den Stream-Server auf dem PC (Port 8765, über VPN) erreichen, ist **ungetestet**.
+- Ob der Port in der Raumfeld-Geräte-URL (z. B. `:60092`) nach einem Neustart der Box gleich bleibt, ist **unbekannt**.
 - Ob Raumfeld-Boxen in der Spotify-Geräteliste (Connect) erscheinen, ist **unbekannt** (hängt von Modell/Firmware ab). Die automatische Zuordnung Box ↔ Connect-Gerät per Namensvergleich ist eine **Annahme**.
 - Spotify-Web-API-Wiedergabesteuerung braucht nach Kenntnisstand **Premium**.
 - Spotify hat die API für Entwickler-Apps mehrfach eingeschränkt; welche Playlist-Endpunkte aktuell erlaubt sind, ist unklar. Code probiert `/tracks`, dann `/items`.
@@ -80,14 +86,14 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 ## 7. GitHub-Stand
 - Repo: **`prostore-projekte/raumfeld_remote`** (vom Nutzer bestätigt; `berion1982/raumfeld_remote` ist hinfällig).
 - `main` enthält nur einen leeren Startcommit (nötig als PR-Ziel, Repo war leer).
-- Projekt liegt auf Branch `claude/ecstatic-mayer-gfo8yn`, PR nach `main` erstellt (noch nicht gemergt).
+- PR #1 (0.1.1) gemergt. 0.2.0 und 0.3.0 auf Branch `claude/ecstatic-mayer-gfo8yn`, neuer PR nach `main`.
 - Regel: Nach jedem Schritt pushen und PR erstellen/aktualisieren.
 
 ## 8. Offene Punkte / nächste Schritte
-1. PR nach `main` prüfen und mergen (siehe Abschnitt 7).
+1. Neuen PR (0.2.0 + 0.3.0) prüfen und mergen (siehe Abschnitt 7).
 2. **Erster Start auf Windows 11** → Fehlermeldungen aus der Statuszeile zurückmelden.
 3. Windows-Firewall-Regel für Port 8765 (privates Netz) setzen; Netzwerkprofil „Privat“ prüfen.
-4. Prüfen, ob die Boxen per SSDP gefunden werden; sonst Geräte-URL manuell (Muster siehe Abschnitt 2).
+4. Einstellungen → „Weitere Netze“ `192.168.20.0/24` eintragen, suchen; sonst Geräte-URL manuell (Muster siehe Abschnitt 2). Danach Wiedergabe über das VPN testen.
 5. Spotify-App im Developer Dashboard anlegen, Redirect-URI eintragen, Client-ID einfügen, beide Wiedergabewege testen.
 6. Fehlende Funktionen (bewusst weggelassen): **Warteschlangenansicht**, **Fortschrittsanzeige**, Zonen-/Gruppenverwaltung von Raumfeld.
 7. Fertige .exe aus GitHub Actions (Artifact „RaumfeldRemote-windows“) auf Windows 11 testen.
@@ -107,3 +113,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.1.0 | Erste Version gebaut (Zip) |
 | 19.11.2026 | 0.1.1 | Ins Repo eingepflegt; `CLAUDE.md`, `HANDOVER.md` ergänzt; README/CHANGELOG aktualisiert; gepusht, PR erstellt |
 | 19.11.2026 | 0.2.0 | Windows-Build per GitHub Actions (.exe + yt-dlp + ffmpeg als Zip), `.gitattributes`, `py`-Launcher |
+| 19.11.2026 | 0.3.0 | Suche über VPN/Router (Unicast-SSDP, „Weitere Netze“), manuelle Geräte werden gespeichert |
