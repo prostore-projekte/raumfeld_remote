@@ -88,6 +88,7 @@ echo.
 echo Alles vorhanden - Raumfeld Remote wird gestartet.
 
 :starten
+call :firewall
 start "" "%VENV_PYW%" start.pyw
 exit /b 0
 
