@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.4.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 19.11.2026 · Version 0.5.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -69,6 +69,12 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   Prüfung in denselben Schritt verlegt; CI-Lauf 2 grün (Oberfläche läuft nach 10 s). Zusätzlich:
   `start.pyw` schreibt jetzt Startfehler nach `%APPDATA%\RaumfeldRemote\fehler.log`, CI gibt es aus.
   Auf echtem Terminalserver mit mehreren Benutzern **ungetestet**.
+- Nutzer (Terminalserver): ffmpeg-Download über PowerShell 5.1 sehr langsam (Fortschrittsanzeige) → 0.4.1 nutzt `curl.exe`.
+- **Offen (Nutzer, Terminalserver):** Lautstärke regeln funktioniert, YouTube-Konto-Test ok, Anzeige „spielt“, aber **kein Ton**.
+  Ursache unbekannt. Vermutung: Box erreicht den Stream-Server auf dem Terminalserver nicht (Firewall/VPN-Routing)
+  oder yt-dlp/ffmpeg scheitern. 0.5.0 bringt Diagnose (Stream-Protokoll, Abruf-Prüfung).
+  **Befund:** Auf dem Terminalserver gab es **keine Firewall-Regel** „Raumfeld Remote“ → sehr wahrscheinliche Ursache.
+  Nutzer soll Regel setzen; `start.bat` legt sie ab 0.5.0 als Administrator selbst an. Bestätigung „Ton da“ steht aus.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
@@ -126,3 +132,5 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.2.0 | Windows-Build per GitHub Actions (.exe + yt-dlp + ffmpeg als Zip), `.gitattributes`, `py`-Launcher |
 | 19.11.2026 | 0.3.0 | Suche über VPN/Router (Unicast-SSDP, „Weitere Netze“), manuelle Geräte werden gespeichert |
 | 19.11.2026 | 0.4.0 | Terminalserver: gemeinsame Einstellungen, automatische Port-Wahl, `start.bat` mit Prüfung/Nachinstallation |
+| 19.11.2026 | 0.4.1 | `start.bat`: schnellere Downloads (curl.exe bzw. PowerShell ohne Fortschrittsanzeige) |
+| 19.11.2026 | 0.5.0 | Diagnose „kein Ton“: Stream-Protokoll, Abruf-Prüfung nach 10 s, Fehler von yt-dlp/ffmpeg protokolliert |

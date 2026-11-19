@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.5.0 – 19.11.2026
+### Hinzugefügt
+- Stream-Protokoll `%APPDATA%\RaumfeldRemote\stream.log`: Abrufe der Lautsprecher, gesendete Datenmenge und
+  Fehlermeldungen von `yt-dlp`/`ffmpeg` (wurden bisher verworfen); Schaltfläche „Stream-Protokoll öffnen“
+- Meldung in der Statuszeile, wenn der Lautsprecher den Stream 10 Sekunden nach dem Start nicht abgerufen hat
+- README: Abschnitt zur Fehlersuche „Anzeige läuft, aber nichts zu hören“
+- `start.bat` legt die Firewall-Regel „Raumfeld Remote“ (TCP 8765–8814, Privat/Domäne) an, wenn sie fehlt
+  und `start.bat` als Administrator läuft
+
+## 0.4.1 – 19.11.2026
+### Behoben
+- `start.bat`: Downloads deutlich schneller – nutzt `curl.exe` (mit Fortschrittsbalken), sonst PowerShell ohne
+  bremsende Fortschrittsanzeige; Entpacken von ffmpeg ebenfalls ohne Fortschrittsanzeige
+- `start.bat`: korrekte Größenangabe für ffmpeg (ca. 200 MB statt 100 MB)
+
 ## 0.4.0 – 19.11.2026
 ### Hinzugefügt
 - Terminalserver-Betrieb: Einstellungen „für alle Benutzer“ (`%PROGRAMDATA%\RaumfeldRemote`, anderer Ort per
