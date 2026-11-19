@@ -65,7 +65,8 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - ✔ Unicast-Suche (0.3.0): Nutzer meldet „Läuft“ (Boxen über VPN gefunden)
 - ✔ 0.4.0: Zwei-Ebenen-Einstellungen lokal getestet (anderer Benutzer sieht gemeinsame Werte); `start.bat` wird im
   Windows-Build von frischem Stand getestet.
-  CI-Lauf 1: Installation durch `start.bat` erfolgreich, danach lief aber kein `pythonw` mehr (Ursache offen) →
+  CI-Lauf 1: Installation durch `start.bat` erfolgreich, Prüfung im Folgeschritt fand kein `pythonw` →
+  Prüfung in denselben Schritt verlegt; CI-Lauf 2 grün (Oberfläche läuft nach 10 s). Zusätzlich:
   `start.pyw` schreibt jetzt Startfehler nach `%APPDATA%\RaumfeldRemote\fehler.log`, CI gibt es aus.
   Auf echtem Terminalserver mit mehreren Benutzern **ungetestet**.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
