@@ -4,7 +4,7 @@ Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern �
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.3.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.4.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -26,17 +26,39 @@ Rückmeldungen aus der Statuszeile beim ersten Start helfen bei der Fehlersuche.
 Hinweis: Die .exe ist nicht signiert. Windows SmartScreen kann warnen → „Weitere Informationen“ → „Trotzdem ausführen“.
 Artefakte werden von GitHub nach einiger Zeit gelöscht (standardmäßig 90 Tage); dann den Workflow über „Run workflow“ neu starten.
 
-## Installation (mit Python, für Entwicklung)
-1. **Python 3.10+** von python.org installieren (Haken bei „Add Python to PATH“).
-2. `installieren.bat` ausführen (legt `.venv` an, installiert `customtkinter`).
-3. `yt-dlp` und `ffmpeg` installieren:
-   ```
-   winget install yt-dlp.yt-dlp
-   winget install Gyan.FFmpeg
-   ```
-   Alternativ die `.exe`-Dateien in den Ordner `tools` neben `start.pyw` legen.
-   (Die winget-Paketnamen sind nach meinem Wissen korrekt, bitte bei Fehlern mit `winget search` prüfen.)
-4. `start.bat` ausführen (oder `python -m raumfeld_remote`).
+## Installation mit Python
+`start.bat` ausführen – mehr ist nicht nötig. Beim Start wird geprüft und bei Bedarf nachinstalliert:
+1. **Python 3.10+** (fehlt es, wird `winget install Python.Python.3.12` für alle Benutzer versucht;
+   ohne winget bitte von python.org installieren, Haken bei „Add python.exe to PATH“)
+2. virtuelle Umgebung `.venv` und die Pakete aus `requirements.txt`
+3. `yt-dlp.exe` und `ffmpeg.exe` – werden in den Ordner `tools` heruntergeladen, falls sie weder dort noch im PATH liegen
+
+Ist alles vorhanden, startet das Programm sofort ohne Konsolenfenster. Bei Fehlern bleibt das Fenster mit einer Meldung offen.
+Stürzt das Programm beim Start ab, erscheint eine Meldung; der Fehler steht in `%APPDATA%\RaumfeldRemote\fehler.log`.
+(`installieren.bat` gibt es weiterhin, wird aber nicht mehr benötigt.)
+
+## Terminalserver (mehrere Benutzer)
+1. Programmordner an einen gemeinsamen Ort legen, z. B. `C:\Programme\RaumfeldRemote`.
+2. Python **für alle Benutzer** installieren („Install for all users“).
+3. `start.bat` **einmal als Administrator** ausführen – installiert alles in den Programmordner.
+   Danach starten alle Benutzer über `start.bat` (z. B. per Verknüpfung) ohne Installation.
+4. Als Administrator Einstellungen vornehmen (weitere Netze, Lautsprecher, Konten) und im Reiter
+   **Einstellungen** auf **„Für alle Benutzer speichern“** klicken.
+
+Einstellungen:
+- Gemeinsam: `%PROGRAMDATA%\RaumfeldRemote\einstellungen.json` (anderer Ort per Umgebungsvariable
+  `RAUMFELD_REMOTE_GEMEINSAM`, z. B. ein Netzlaufwerk). Normale Benutzer können sie lesen, aber nicht ändern.
+- Pro Benutzer: `%APPDATA%\RaumfeldRemote\einstellungen.json` – enthält nur, was ein Benutzer selbst geändert hat;
+  diese Werte haben Vorrang vor den gemeinsamen.
+- Geteilt werden: Port, Bitrate, weitere Netze, manuell eingetragene Lautsprecher, Favoriten, YouTube-Anmeldung
+  (Browser bzw. `cookies.txt`), Spotify-Client-ID und – falls angemeldet – die Spotify-Anmeldung.
+- Geteilte Spotify-Anmeldung: alle Benutzer steuern dasselbe Konto; das Token liegt unverschlüsselt und
+  für alle lesbar in `%PROGRAMDATA%\RaumfeldRemote\spotify_token.json`.
+- YouTube „aus Browser“ liest die Cookies **des jeweiligen Benutzers**. Für ein gemeinsames Konto eine
+  `cookies.txt` an einem für alle lesbaren Ort verwenden.
+- Jede Sitzung braucht einen eigenen Stream-Port: Ist der eingestellte Port belegt, nimmt das Programm
+  automatisch den nächsten freien (bis zu 50 Ports, Standard 8765–8814).
+- Die Spotify-Anmeldung nutzt kurzzeitig Port 8888 – zwei Benutzer können sich nicht gleichzeitig anmelden.
 
 ## Lautsprecher in einem anderen Netz (Router/VPN)
 Die automatische Suche nutzt Multicast; das wird von Routern und VPN-Verbindungen normalerweise nicht weitergeleitet.
@@ -50,12 +72,12 @@ Wichtig: Der Lautsprecher muss den PC umgekehrt auch erreichen (Stream-Port, Sta
 Routing über das VPN und die Windows-Firewall müssen das zulassen.
 
 ## Windows-Firewall
-Der Lautsprecher muss den Stream-Server auf deinem PC erreichen (Standard: TCP-Port 8765).
-Beim ersten Start fragt Windows evtl. nach – „Privates Netzwerk“ zulassen. Sonst als Administrator:
+Der Lautsprecher muss den Stream-Server auf dem PC erreichen (Standard: TCP-Port 8765, auf Terminalservern
+bis 8814). Beim ersten Start fragt Windows evtl. nach – zulassen. Sonst als Administrator:
 ```
-netsh advfirewall firewall add rule name="Raumfeld Remote" dir=in action=allow protocol=TCP localport=8765 profile=private
+netsh advfirewall firewall add rule name="Raumfeld Remote" dir=in action=allow protocol=TCP localport=8765-8814 profile=private,domain
 ```
-Das Netzwerk muss als „Privat“ eingestuft sein.
+Das Netzwerk muss als „Privat“ oder „Domäne“ eingestuft sein (nicht „Öffentlich“).
 
 ## YouTube-Konto verknüpfen
 Reiter **Konten → YouTube**: Browser wählen, in dem du bei YouTube angemeldet bist, dann „Speichern & testen“.
@@ -103,7 +125,7 @@ raumfeld_remote/
   stream_server.py  HTTP-Server: yt-dlp -> ffmpeg -> MP3
   player.py         Warteschlange, Weiter/Zurück/Pause/Stop
   spotify.py        OAuth (PKCE) und Web-API-Aufrufe
-  einstellungen.py  JSON-Einstellungen in %APPDATA%
+  einstellungen.py  JSON-Einstellungen: gemeinsam (%PROGRAMDATA%) und pro Benutzer (%APPDATA%)
   gui.py            Oberfläche (customtkinter)
 start.pyw / start.bat / installieren.bat / build_exe.bat
 ```

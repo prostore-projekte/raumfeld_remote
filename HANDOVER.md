@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.3.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 19.11.2026 · Version 0.4.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -62,7 +62,13 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - ✔ Syntaxprüfung aller Dateien, `pyflakes` ohne Befund
 - ✔ Stream-Server mit lokaler WAV-Datei → lieferte gültigen MP3-Stream (Linux-Sandbox)
 - ✔ Windows 11 (Nutzer, 19.11.2026): `installieren.bat` läuft durch (customtkinter 6.0.0), Programm startet, Suche findet aber nur einen Samsung-TV
-- ✔ Unicast-Suche (0.3.0) lokal mit simuliertem SSDP-Gerät getestet; mit echten Raumfeld-Boxen über VPN **ungetestet**
+- ✔ Unicast-Suche (0.3.0): Nutzer meldet „Läuft“ (Boxen über VPN gefunden)
+- ✔ 0.4.0: Zwei-Ebenen-Einstellungen lokal getestet (anderer Benutzer sieht gemeinsame Werte); `start.bat` wird im
+  Windows-Build von frischem Stand getestet.
+  CI-Lauf 1: Installation durch `start.bat` erfolgreich, Prüfung im Folgeschritt fand kein `pythonw` →
+  Prüfung in denselben Schritt verlegt; CI-Lauf 2 grün (Oberfläche läuft nach 10 s). Zusätzlich:
+  `start.pyw` schreibt jetzt Startfehler nach `%APPDATA%\RaumfeldRemote\fehler.log`, CI gibt es aus.
+  Auf echtem Terminalserver mit mehreren Benutzern **ungetestet**.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
@@ -70,6 +76,11 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   GUI-Import und einen 10-Sekunden-Starttest. Ergebnis siehe GitHub Actions (kein Test mit echter Hardware).
 
 ## 6. Unsicherheiten und Annahmen
+- **Einsatz:** Programm soll auf einem **Terminalserver** laufen (mehrere Benutzer gleichzeitig). Gemeinsame Einstellungen
+  in `%PROGRAMDATA%\RaumfeldRemote` – Annahme: normale Benutzer haben dort nur Leserechte, Admin speichert „für alle“.
+- `winget install -e --id Python.Python.3.12 --scope machine` in `start.bat`: Paket-ID und `--scope machine` **nicht verifiziert**;
+  auf Windows Server ist winget oft nicht installiert (dann Hinweis auf python.org).
+- Spotify-Login-Callback auf Port 8888 ist pro Rechner nur einmal gleichzeitig nutzbar.
 - **Netz des Nutzers:** PC in `192.168.10.0/24`, Lautsprecher in `192.168.20.0/24`, verbunden per VPN; Ping 10 → 20 geht.
   Multicast-SSDP kommt nicht über das VPN → Lösung 0.3.0: Unicast-M-SEARCH. Ob Raumfeld-Boxen auf Unicast antworten, ist **unbekannt**.
   Ob die Boxen den Stream-Server auf dem PC (Port 8765, über VPN) erreichen, ist **ungetestet**.
@@ -114,3 +125,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.1.1 | Ins Repo eingepflegt; `CLAUDE.md`, `HANDOVER.md` ergänzt; README/CHANGELOG aktualisiert; gepusht, PR erstellt |
 | 19.11.2026 | 0.2.0 | Windows-Build per GitHub Actions (.exe + yt-dlp + ffmpeg als Zip), `.gitattributes`, `py`-Launcher |
 | 19.11.2026 | 0.3.0 | Suche über VPN/Router (Unicast-SSDP, „Weitere Netze“), manuelle Geräte werden gespeichert |
+| 19.11.2026 | 0.4.0 | Terminalserver: gemeinsame Einstellungen, automatische Port-Wahl, `start.bat` mit Prüfung/Nachinstallation |

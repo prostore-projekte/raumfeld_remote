@@ -90,7 +90,11 @@ class Spotify:
         if antwort.get("refresh_token"):
             neu["refresh_token"] = antwort["refresh_token"]
         self._token = neu
-        self.token_datei.write_text(json.dumps(neu), encoding="utf-8")
+        try:
+            self.token_datei.write_text(json.dumps(neu), encoding="utf-8")
+        except OSError:
+            # z. B. gemeinsames Token ohne Schreibrechte: Token bleibt im Speicher gueltig
+            pass
 
     def _token_anfrage(self, formular: dict) -> dict:
         daten = urllib.parse.urlencode(formular).encode("ascii")

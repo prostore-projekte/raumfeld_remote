@@ -3,6 +3,20 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.4.0 – 19.11.2026
+### Hinzugefügt
+- Terminalserver-Betrieb: Einstellungen „für alle Benutzer“ (`%PROGRAMDATA%\RaumfeldRemote`, anderer Ort per
+  `RAUMFELD_REMOTE_GEMEINSAM`), Schaltfläche „Für alle Benutzer speichern“; geteilt werden Netze, Lautsprecher,
+  Favoriten, Konten (inkl. Spotify-Anmeldung) und Stream-Optionen
+- Benutzereinstellungen speichern nur noch selbst geänderte Werte (gemeinsame Werte werden nicht überdeckt)
+- Stream-Server weicht bei belegtem Port automatisch auf den nächsten freien aus (mehrere Sitzungen gleichzeitig)
+- `start.bat` prüft Python, `.venv`, Pakete, `yt-dlp` und `ffmpeg` und installiert Fehlendes nach
+- Windows-Build testet zusätzlich `start.bat` von einem frischen Stand aus
+- Startfehler werden nicht mehr verschluckt: Meldungsfenster und Protokoll `%APPDATA%\RaumfeldRemote\fehler.log`
+### Geändert
+- Firewall-Befehl gilt für den Port-Bereich 8765–8814 und die Profile „Privat“ und „Domäne“
+- Spotify-Token: Schreibfehler (z. B. gemeinsames Token ohne Schreibrechte) führen nicht mehr zum Abbruch
+
 ## 0.3.0 – 19.11.2026
 ### Hinzugefügt
 - Lautsprechersuche über Netzgrenzen (Router/VPN): Einstellung „Weitere Netze“ (z. B. `192.168.20.0/24`);
