@@ -16,44 +16,32 @@ import os
 import socketserver
 import subprocess
 import threading
-import time
 import urllib.parse
 
-from .einstellungen import konfig_ordner
+from .protokoll import protokoll
 from .quellen import KEIN_FENSTER, finde_programm
 
-# Protokolldatei fuer die Fehlersuche (wird geleert, sobald sie groesser als 1 MB ist)
-PROTOKOLL = konfig_ordner() / "stream.log"
-_protokoll_sperre = threading.Lock()
+
+def _fehler_mitlesen(name: str, strom) -> None:
+    """Liest die Fehlerausgabe eines Prozesses zeilenweise und schreibt sie ins Protokoll."""
+    for roh in iter(strom.readline, b""):
+        text = roh.decode("utf-8", errors="replace").strip()
+        if text:
+            protokoll(f"  {name}: {text}")
+    strom.close()
 
 
-def protokoll(text: str) -> None:
-    """Haengt eine Zeile mit Uhrzeit an das Stream-Protokoll an (Fehler ignorieren)."""
-    zeile = time.strftime("%H:%M:%S ") + text + "\n"
-    with _protokoll_sperre:
-        try:
-            with open(PROTOKOLL, "a", encoding="utf-8") as datei:
-                datei.write(zeile)
-        except OSError:
-            pass
-
-
-def _starte(befehl: list[str], **optionen) -> subprocess.Popen:
+def _starte(name: str, befehl: list[str], **optionen) -> subprocess.Popen:
     """
-    Startet einen Prozess ohne Konsolenfenster; seine Fehlerausgabe (stderr)
-    wird an das Protokoll angehaengt. Das eigene Datei-Handle wird danach
-    sofort geschlossen - der Kindprozess behaelt seine Kopie.
+    Startet einen Prozess ohne Konsolenfenster. Seine Fehlerausgabe (stderr)
+    wird in einem eigenen Thread mitgelesen und landet im Protokoll
+    (Datei + aufklappbares Protokoll in der Oberflaeche).
     """
-    try:
-        fehler = open(PROTOKOLL, "ab")
-    except OSError:
-        fehler = None
-    try:
-        return subprocess.Popen(befehl, stderr=fehler or subprocess.DEVNULL,
-                                creationflags=KEIN_FENSTER, **optionen)
-    finally:
-        if fehler:
-            fehler.close()
+    prozess = subprocess.Popen(befehl, stderr=subprocess.PIPE,
+                               creationflags=KEIN_FENSTER, **optionen)
+    threading.Thread(target=_fehler_mitlesen, args=(name, prozess.stderr),
+                     daemon=True).start()
+    return prozess
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
@@ -135,7 +123,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
         if os.path.isfile(quelle):
             # Lokale Datei: ffmpeg liest direkt
-            ffmpeg = _starte(
+            ffmpeg = _starte("ffmpeg",
                 [ffmpeg_exe, "-hide_banner", "-loglevel", "error", "-nostdin",
                  "-i", quelle, *ausgabe],
                 stdout=subprocess.PIPE)
@@ -148,8 +136,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         ytdlp_befehl = [ytdlp_exe, "--quiet", "--no-playlist",  # Warnungen/Fehler -> Protokoll
                         *self.server.cookie_args,  # type: ignore[attr-defined]
                         "-f", "bestaudio/best", "-o", "-", quelle]
-        ytdlp = _starte(ytdlp_befehl, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
-        ffmpeg = _starte(
+        ytdlp = _starte("yt-dlp", ytdlp_befehl, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        ffmpeg = _starte("ffmpeg",
             [ffmpeg_exe, "-hide_banner", "-loglevel", "error",
              "-i", "pipe:0", *ausgabe],
             stdin=ytdlp.stdout, stdout=subprocess.PIPE)
@@ -177,11 +165,6 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         self.quellen: dict[str, str] = {}
         # Nummer (als Text) -> Anzahl GET-Anfragen (zeigt, ob der Lautsprecher den Stream abruft)
         self.abrufe: dict[str, int] = {}
-        try:
-            if PROTOKOLL.stat().st_size > 1_000_000:
-                PROTOKOLL.unlink()  # Protokoll nicht endlos wachsen lassen
-        except OSError:
-            pass
         protokoll(f"=== Stream-Server gestartet auf Port {port} ===")
         self._thread: threading.Thread | None = None
 

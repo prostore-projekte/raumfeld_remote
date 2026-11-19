@@ -18,6 +18,7 @@ per UPnP; Audio über `yt-dlp → ffmpeg → MP3`-Stream. Details/Historie: `HAN
 | `raumfeld_remote/spotify.py` | OAuth PKCE, Web-API |
 | `raumfeld_remote/einstellungen.py` | JSON in `%APPDATA%/RaumfeldRemote/` |
 | `raumfeld_remote/gui.py` | Oberfläche; GUI-Updates nur über Queue (`_ui` / `_ui_pumpe`) |
+| `raumfeld_remote/protokoll.py` | `protokoll()` → `stream.log` + Live-Protokoll in der GUI (`abonnieren`) |
 | `raumfeld_remote/__init__.py` | `__version__` |
 
 ## Code-Regeln

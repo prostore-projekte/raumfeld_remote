@@ -15,6 +15,7 @@ import time
 from typing import Callable
 
 from .quellen import Titel
+from .protokoll import protokoll
 from .stream_server import StreamServer
 from .upnp import Renderer, avt, baue_didl, hole_zustand
 
@@ -127,6 +128,7 @@ class Wiedergabe:
         """
         def pruefen() -> None:
             if not self._ende and self.server.abrufe.get(nummer, 0) == 0:
+                protokoll(f"✗ Lautsprecher hat {url} nach {sekunden:.0f} s nicht abgerufen")
                 self.bei_meldung("Der Lautsprecher hat den Stream nicht abgerufen – "
                                  f"erreicht er den PC? Firewall/Port prüfen. URL: {url}")
         zeitgeber = threading.Timer(sekunden, pruefen)
@@ -140,6 +142,7 @@ class Wiedergabe:
         """
         gestartet = False
         beginn = time.monotonic()
+        letzter_zustand = None  # fuer das Protokoll: nur Wechsel melden
         while True:
             # Wartet bis zu 2 s; kehrt sofort zurueck, wenn Weiter/Stop gedrueckt wird
             if self._wecker.wait(2.0):
@@ -152,6 +155,10 @@ class Wiedergabe:
                 zustand = hole_zustand(self.renderer)
             except (RuntimeError, OSError):
                 continue  # kurzer Netzwerk-Haenger - weiter abfragen
+            # Nur Zustandswechsel protokollieren (Abfrage laeuft alle 2 s)
+            if zustand != letzter_zustand:
+                protokoll(f"  Zustand {self.renderer.name}: {zustand or '(leer)'}")
+                letzter_zustand = zustand
             if zustand == "PLAYING":
                 gestartet = True
             elif gestartet and zustand in ("STOPPED", "NO_MEDIA_PRESENT"):

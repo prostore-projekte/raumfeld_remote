@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.5.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 19.11.2026 · Version 0.6.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -74,7 +74,9 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   Ursache unbekannt. Vermutung: Box erreicht den Stream-Server auf dem Terminalserver nicht (Firewall/VPN-Routing)
   oder yt-dlp/ffmpeg scheitern. 0.5.0 bringt Diagnose (Stream-Protokoll, Abruf-Prüfung).
   **Befund:** Auf dem Terminalserver gab es **keine Firewall-Regel** „Raumfeld Remote“ → sehr wahrscheinliche Ursache.
-  Nutzer soll Regel setzen; `start.bat` legt sie ab 0.5.0 als Administrator selbst an. Bestätigung „Ton da“ steht aus.
+  Nutzer soll Regel setzen; `start.bat` legt sie ab 0.5.0 als Administrator selbst an.
+  **Nachtrag:** Regel gesetzt – trotzdem **kein Ton**. Ursache weiter offen. 0.6.0: Live-Protokoll in der GUI
+  (UPnP-Befehle, Zustände, Abrufe, yt-dlp/ffmpeg-Fehler). Protokollinhalt vom Nutzer abwarten.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
 - ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
 - ✘ `build_exe.bat` ungetestet
@@ -134,3 +136,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.4.0 | Terminalserver: gemeinsame Einstellungen, automatische Port-Wahl, `start.bat` mit Prüfung/Nachinstallation |
 | 19.11.2026 | 0.4.1 | `start.bat`: schnellere Downloads (curl.exe bzw. PowerShell ohne Fortschrittsanzeige) |
 | 19.11.2026 | 0.5.0 | Diagnose „kein Ton“: Stream-Protokoll, Abruf-Prüfung nach 10 s, Fehler von yt-dlp/ffmpeg protokolliert |
+| 19.11.2026 | 0.6.0 | Aufklappbares Live-Protokoll, UPnP-Befehle/Zustände protokolliert, `protokoll.py` |

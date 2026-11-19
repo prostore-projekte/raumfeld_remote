@@ -4,7 +4,7 @@ Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern �
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.5.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.6.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -78,6 +78,9 @@ Routing über das VPN und die Windows-Firewall müssen das zulassen.
 - Ruft der Lautsprecher den Stream 10 Sekunden nach dem Start nicht ab, meldet das Programm das in der Statuszeile
   (mit der Stream-URL). Dann erreicht der Lautsprecher den PC nicht: Firewall-Regel (siehe unten), Routing über das VPN,
   Netzwerkprofil „Öffentlich“.
+- **„▸ Protokoll anzeigen“** unten im Fenster klappt ein Live-Protokoll auf: Befehle an den Lautsprecher (→/←),
+  dessen Zustand (PLAYING, STOPPED …), Stream-Abrufe, Statusmeldungen und Fehler von `yt-dlp`/`ffmpeg`.
+  Bei einem Fehler zeigt die zugeklappte Schaltfläche „(Fehler!)“.
 - **Einstellungen → „Stream-Protokoll öffnen“** (`%APPDATA%\RaumfeldRemote\stream.log`) zeigt jeden Abruf des
   Lautsprechers, wie viel gesendet wurde, und die Fehlermeldungen von `yt-dlp` und `ffmpeg`.
   - Kein `GET`-Eintrag → Lautsprecher erreicht den PC nicht.
