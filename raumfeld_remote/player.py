@@ -99,6 +99,7 @@ class Wiedergabe:
                 avt(self.renderer, "SetAVTransportURI", CurrentURI=url,
                     CurrentURIMetaData=baue_didl(titel.titel, url))
                 avt(self.renderer, "Play", Speed=1)
+                self._abruf_pruefen(str(self._index), url)
             except (RuntimeError, OSError) as exc:
                 self.bei_meldung(f"Fehler bei „{titel.titel}“: {exc}")
                 self._index += 1
@@ -117,6 +118,20 @@ class Wiedergabe:
 
         if natuerliches_ende and not self._ende:
             self.bei_ende()
+
+    def _abruf_pruefen(self, nummer: str, url: str, sekunden: float = 10.0) -> None:
+        """
+        Prueft nach einigen Sekunden, ob der Lautsprecher den Stream wirklich
+        abgerufen hat. Wenn nicht, erreicht er den PC nicht (Firewall, Routing,
+        falsche IP-Adresse) - dann laeuft die Anzeige weiter, aber es ist nichts zu hoeren.
+        """
+        def pruefen() -> None:
+            if not self._ende and self.server.abrufe.get(nummer, 0) == 0:
+                self.bei_meldung("Der Lautsprecher hat den Stream nicht abgerufen – "
+                                 f"erreicht er den PC? Firewall/Port prüfen. URL: {url}")
+        zeitgeber = threading.Timer(sekunden, pruefen)
+        zeitgeber.daemon = True
+        zeitgeber.start()
 
     def _warte_auf_ende(self, start_timeout: float = 45.0) -> str:
         """

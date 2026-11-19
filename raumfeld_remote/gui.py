@@ -15,6 +15,7 @@ regelmaessig abarbeitet (_ui_pumpe).
 
 from __future__ import annotations
 
+import os
 import queue
 import subprocess
 import threading
@@ -28,7 +29,7 @@ from .player import Wiedergabe
 from .quellen import (KEIN_FENSTER, Titel, cookie_argumente, finde_programm,
                       titel_liste_aufbauen)
 from .spotify import Spotify, SpotifyFehler, playlist_id_aus_text
-from .stream_server import StreamServer
+from .stream_server import PROTOKOLL, StreamServer
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
                    renderer_laden, renderer_suchen, setze_lautstaerke)
 
@@ -349,6 +350,10 @@ class App(ctk.CTk):
                           "zugreifen,\nin einer Eingabeaufforderung als Administrator ausführen:"
                      ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=12, pady=(14, 2))
         self.txt_firewall = ctk.CTkTextbox(tab, height=60, wrap="word")
+        # Stream-Protokoll oeffnen: zeigt Abrufe der Lautsprecher und Fehler von yt-dlp/ffmpeg
+        ctk.CTkButton(tab, text="Stream-Protokoll öffnen", width=200,
+                      command=self._protokoll_oeffnen
+                      ).grid(row=7, column=0, columnspan=2, sticky="w", padx=12, pady=10)
         self.txt_firewall.grid(row=6, column=0, columnspan=2, sticky="ew", padx=12)
         self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=self.einst["port"],
                                                             ende=self.einst["port"] + PORT_BEREICH - 1))
@@ -851,6 +856,16 @@ class App(ctk.CTk):
         self.txt_firewall.delete("1.0", "end")
         self.txt_firewall.insert("1.0", FIREWALL_BEFEHL.format(port=port, ende=port + PORT_BEREICH - 1))
         self._status("Einstellungen gespeichert (gelten ab dem nächsten Abspielen).")
+
+    def _protokoll_oeffnen(self) -> None:
+        """Oeffnet stream.log im Standard-Editor (Windows) bzw. zeigt den Pfad an."""
+        if not PROTOKOLL.exists():
+            messagebox.showinfo("Stream-Protokoll", "Noch kein Protokoll vorhanden – zuerst etwas abspielen.")
+            return
+        try:
+            os.startfile(PROTOKOLL)  # type: ignore[attr-defined]  # nur unter Windows vorhanden
+        except (AttributeError, OSError):
+            messagebox.showinfo("Stream-Protokoll", f"Protokoll: {PROTOKOLL}")
 
     def _fuer_alle_speichern(self) -> None:
         """

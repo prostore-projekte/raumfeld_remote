@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.5.0 – 19.11.2026
+### Hinzugefügt
+- Stream-Protokoll `%APPDATA%\RaumfeldRemote\stream.log`: Abrufe der Lautsprecher, gesendete Datenmenge und
+  Fehlermeldungen von `yt-dlp`/`ffmpeg` (wurden bisher verworfen); Schaltfläche „Stream-Protokoll öffnen“
+- Meldung in der Statuszeile, wenn der Lautsprecher den Stream 10 Sekunden nach dem Start nicht abgerufen hat
+- README: Abschnitt zur Fehlersuche „Anzeige läuft, aber nichts zu hören“
+
 ## 0.4.1 – 19.11.2026
 ### Behoben
 - `start.bat`: Downloads deutlich schneller – nutzt `curl.exe` (mit Fortschrittsbalken), sonst PowerShell ohne

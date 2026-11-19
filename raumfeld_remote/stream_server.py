@@ -4,6 +4,9 @@ stream_server.py - Lokaler HTTP-Server, der Titel als MP3-Stream ausliefert.
 
 Ablauf pro Anfrage des Lautsprechers auf /stream/<nummer>.mp3:
     yt-dlp (laedt Audio) -> ffmpeg (wandelt live in MP3) -> HTTP-Antwort
+
+Diagnose: Jede Anfrage, die Menge der gesendeten Daten sowie Fehlermeldungen
+von yt-dlp und ffmpeg landen im Protokoll %APPDATA%/RaumfeldRemote/stream.log.
 """
 
 from __future__ import annotations
@@ -13,9 +16,44 @@ import os
 import socketserver
 import subprocess
 import threading
+import time
 import urllib.parse
 
+from .einstellungen import konfig_ordner
 from .quellen import KEIN_FENSTER, finde_programm
+
+# Protokolldatei fuer die Fehlersuche (wird geleert, sobald sie groesser als 1 MB ist)
+PROTOKOLL = konfig_ordner() / "stream.log"
+_protokoll_sperre = threading.Lock()
+
+
+def protokoll(text: str) -> None:
+    """Haengt eine Zeile mit Uhrzeit an das Stream-Protokoll an (Fehler ignorieren)."""
+    zeile = time.strftime("%H:%M:%S ") + text + "\n"
+    with _protokoll_sperre:
+        try:
+            with open(PROTOKOLL, "a", encoding="utf-8") as datei:
+                datei.write(zeile)
+        except OSError:
+            pass
+
+
+def _starte(befehl: list[str], **optionen) -> subprocess.Popen:
+    """
+    Startet einen Prozess ohne Konsolenfenster; seine Fehlerausgabe (stderr)
+    wird an das Protokoll angehaengt. Das eigene Datei-Handle wird danach
+    sofort geschlossen - der Kindprozess behaelt seine Kopie.
+    """
+    try:
+        fehler = open(PROTOKOLL, "ab")
+    except OSError:
+        fehler = None
+    try:
+        return subprocess.Popen(befehl, stderr=fehler or subprocess.DEVNULL,
+                                creationflags=KEIN_FENSTER, **optionen)
+    finally:
+        if fehler:
+            fehler.close()
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
@@ -42,22 +80,30 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
     def do_HEAD(self):  # noqa: N802 (Name von BaseHTTPRequestHandler vorgegeben)
         """Manche Renderer pruefen vorab per HEAD, ob der Stream existiert."""
+        protokoll(f"HEAD {self.path} von {self.client_address[0]}")
         if self._quelle() is None:
             self.send_error(404)
             return
         self._kopfzeilen_senden()
 
     def do_GET(self):  # noqa: N802
+        protokoll(f"GET {self.path} von {self.client_address[0]}")
+        name = os.path.basename(urllib.parse.urlparse(self.path).path).removesuffix(".mp3")
+        # Merken, dass der Lautsprecher diesen Titel abgerufen hat (Pruefung im Player)
+        self.server.abrufe[name] = self.server.abrufe.get(name, 0) + 1  # type: ignore[attr-defined]
         quelle = self._quelle()
         if quelle is None:
+            protokoll("  -> 404, Titelnummer unbekannt")
             self.send_error(404)
             return
         self._kopfzeilen_senden()
 
         prozesse = self._pipeline_starten(quelle)
         if not prozesse:
+            protokoll("  -> ffmpeg oder yt-dlp nicht gefunden")
             return
         ffmpeg = prozesse[-1]
+        gesendet = 0
         try:
             # MP3-Daten blockweise an den Lautsprecher weiterreichen
             while True:
@@ -65,11 +111,14 @@ class _Handler(http.server.BaseHTTPRequestHandler):
                 if not block:
                     break
                 self.wfile.write(block)
+                gesendet += len(block)
         except (ConnectionError, OSError):
             # Lautsprecher hat die Verbindung beendet (Stop, naechster Titel ...)
             # Unter Windows ist das meist ConnectionAbortedError/ResetError.
             pass
         finally:
+            protokoll(f"  -> {gesendet // 1024} KB an {self.client_address[0]} gesendet"
+                      + ("  (KEINE DATEN - siehe Fehlermeldungen oben)" if gesendet == 0 else ""))
             for p in prozesse:
                 if p.poll() is None:
                     p.kill()
@@ -86,29 +135,24 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
         if os.path.isfile(quelle):
             # Lokale Datei: ffmpeg liest direkt
-            ffmpeg = subprocess.Popen(
+            ffmpeg = _starte(
                 [ffmpeg_exe, "-hide_banner", "-loglevel", "error", "-nostdin",
                  "-i", quelle, *ausgabe],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                creationflags=KEIN_FENSTER)
+                stdout=subprocess.PIPE)
             return [ffmpeg]
 
         ytdlp_exe = finde_programm("yt-dlp")
         if ytdlp_exe is None:
             return []
         # yt-dlp schreibt das beste Audio nach stdout ("-o -")
-        ytdlp_befehl = [ytdlp_exe, "--quiet", "--no-warnings", "--no-playlist",
+        ytdlp_befehl = [ytdlp_exe, "--quiet", "--no-playlist",  # Warnungen/Fehler -> Protokoll
                         *self.server.cookie_args,  # type: ignore[attr-defined]
                         "-f", "bestaudio/best", "-o", "-", quelle]
-        ytdlp = subprocess.Popen(ytdlp_befehl, stdout=subprocess.PIPE,
-                                 stdin=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL,
-                                 creationflags=KEIN_FENSTER)
-        ffmpeg = subprocess.Popen(
+        ytdlp = _starte(ytdlp_befehl, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        ffmpeg = _starte(
             [ffmpeg_exe, "-hide_banner", "-loglevel", "error",
              "-i", "pipe:0", *ausgabe],
-            stdin=ytdlp.stdout, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, creationflags=KEIN_FENSTER)
+            stdin=ytdlp.stdout, stdout=subprocess.PIPE)
         # Eigene Kopie des Pipe-Endes schliessen, damit yt-dlp bei
         # vorzeitigem ffmpeg-Ende ein Signal bekommt
         ytdlp.stdout.close()
@@ -131,6 +175,14 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         self.cookie_args = cookie_args
         # Nummer (als Text) -> Quelle; wird vom Player befuellt
         self.quellen: dict[str, str] = {}
+        # Nummer (als Text) -> Anzahl GET-Anfragen (zeigt, ob der Lautsprecher den Stream abruft)
+        self.abrufe: dict[str, int] = {}
+        try:
+            if PROTOKOLL.stat().st_size > 1_000_000:
+                PROTOKOLL.unlink()  # Protokoll nicht endlos wachsen lassen
+        except OSError:
+            pass
+        protokoll(f"=== Stream-Server gestartet auf Port {port} ===")
         self._thread: threading.Thread | None = None
 
     def starten(self) -> None:

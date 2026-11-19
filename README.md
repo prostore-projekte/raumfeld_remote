@@ -4,7 +4,7 @@ Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern �
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.4.1 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.5.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -71,6 +71,16 @@ Stehen die Lautsprecher in einem anderen Netz (z. B. PC in `192.168.10.0/24`, La
 
 Wichtig: Der Lautsprecher muss den PC umgekehrt auch erreichen (Stream-Port, Standard 8765) –
 Routing über das VPN und die Windows-Firewall müssen das zulassen.
+
+## Fehlersuche: Anzeige läuft, aber nichts zu hören
+- Ruft der Lautsprecher den Stream 10 Sekunden nach dem Start nicht ab, meldet das Programm das in der Statuszeile
+  (mit der Stream-URL). Dann erreicht der Lautsprecher den PC nicht: Firewall-Regel (siehe unten), Routing über das VPN,
+  Netzwerkprofil „Öffentlich“.
+- **Einstellungen → „Stream-Protokoll öffnen“** (`%APPDATA%\RaumfeldRemote\stream.log`) zeigt jeden Abruf des
+  Lautsprechers, wie viel gesendet wurde, und die Fehlermeldungen von `yt-dlp` und `ffmpeg`.
+  - Kein `GET`-Eintrag → Lautsprecher erreicht den PC nicht.
+  - `GET` vorhanden, aber „0 KB gesendet“ → `yt-dlp`/`ffmpeg` scheitern; die Fehlermeldung steht darüber.
+  - Daten gesendet, trotzdem still → Lautstärke/Zone in Raumfeld prüfen; ggf. ein anderes Gerät aus der Liste wählen.
 
 ## Windows-Firewall
 Der Lautsprecher muss den Stream-Server auf dem PC erreichen (Standard: TCP-Port 8765, auf Terminalservern
