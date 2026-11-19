@@ -4,7 +4,7 @@ Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern �
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.6.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.7.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -32,7 +32,9 @@ Artefakte werden von GitHub nach einiger Zeit gelöscht (standardmäßig 90 Tage
    ohne winget bitte von python.org installieren, Haken bei „Add python.exe to PATH“)
 2. virtuelle Umgebung `.venv` und die Pakete aus `requirements.txt`
 3. `yt-dlp.exe` und `ffmpeg.exe` – werden in den Ordner `tools` heruntergeladen, falls sie weder dort noch im PATH liegen
-4. Firewall-Regel „Raumfeld Remote“ (TCP 8765–8814) – wird angelegt, wenn `start.bat` als Administrator läuft
+4. `deno.exe` – JavaScript-Laufzeit, die `yt-dlp` für YouTube braucht (ohne sie: „Requested format is not available“, kein Ton)
+5. Firewall-Regel „Raumfeld Remote“ (TCP 8765–8814) – wird angelegt, wenn `start.bat` als Administrator läuft
+6. Als Administrator aktualisiert `start.bat` außerdem `tools\yt-dlp.exe` (YouTube ändert sich häufig)
    (ffmpeg ca. 200 MB, je nach Leitung einige Minuten)
 
 Ist alles vorhanden, startet das Programm sofort ohne Konsolenfenster. Bei Fehlern bleibt das Fenster mit einer Meldung offen.
@@ -85,6 +87,8 @@ Routing über das VPN und die Windows-Firewall müssen das zulassen.
   Lautsprechers, wie viel gesendet wurde, und die Fehlermeldungen von `yt-dlp` und `ffmpeg`.
   - Kein `GET`-Eintrag → Lautsprecher erreicht den PC nicht.
   - `GET` vorhanden, aber „0 KB gesendet“ → `yt-dlp`/`ffmpeg` scheitern; die Fehlermeldung steht darüber.
+    „Signature/n challenge solving failed“ + „Requested format is not available“ → `deno.exe` fehlt oder `yt-dlp`
+    ist veraltet: `start.bat` als Administrator ausführen.
   - Daten gesendet, trotzdem still → Lautstärke/Zone in Raumfeld prüfen; ggf. ein anderes Gerät aus der Liste wählen.
 
 ## Windows-Firewall

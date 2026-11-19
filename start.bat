@@ -26,6 +26,7 @@ if not exist "%VENV_PYW%" goto pruefen
 "%VENV_PY%" -c "import customtkinter" >nul 2>&1 || goto pruefen
 call :programm_da yt-dlp || goto pruefen
 call :programm_da ffmpeg || goto pruefen
+call :programm_da deno || goto pruefen
 goto starten
 
 :pruefen
@@ -69,7 +70,7 @@ if not exist tools mkdir tools || goto fehler_rechte
 call :laden "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" "tools\yt-dlp.exe" || goto fehler_download
 
 :ffmpeg_pruefen
-call :programm_da ffmpeg && goto fertig
+call :programm_da ffmpeg && goto deno_pruefen
 echo [ffmpeg] wird in den Ordner "tools" heruntergeladen (ca. 200 MB, kann einige Minuten dauern) ...
 if not exist tools mkdir tools || goto fehler_rechte
 call :laden "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" "%TEMP%\raumfeld_ffmpeg.zip" || goto fehler_download
@@ -83,12 +84,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Remove-Item $zip, $ziel -Recurse -Force" ^
   || goto fehler_download
 
+:deno_pruefen
+rem ---------------------------------------------------- 4. deno (JavaScript fuer yt-dlp)
+rem YouTube verlangt das Loesen von JavaScript-Aufgaben; yt-dlp nutzt dafuer deno.
+rem Ohne deno: "Requested format is not available" -> kein Ton.
+call :programm_da deno && goto fertig
+echo [deno] wird in den Ordner "tools" heruntergeladen ...
+if not exist tools mkdir tools || goto fehler_rechte
+call :laden "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip" "%TEMP%\raumfeld_deno.zip" || goto fehler_download
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';" ^
+  "$zip = Join-Path $env:TEMP 'raumfeld_deno.zip'; Expand-Archive $zip -DestinationPath 'tools' -Force; Remove-Item $zip -Force" ^
+  || goto fehler_download
+
 :fertig
 echo.
 echo Alles vorhanden - Raumfeld Remote wird gestartet.
 
 :starten
 call :firewall
+call :ytdlp_aktualisieren
 start "" "%VENV_PYW%" start.pyw
 exit /b 0
 
@@ -101,6 +116,15 @@ rem Erfolg (errorlevel 0), wenn %1.exe im Ordner tools oder im PATH liegt
 if exist "tools\%~1.exe" exit /b 0
 where %~1 >nul 2>&1
 exit /b %errorlevel%
+
+:ytdlp_aktualisieren
+rem YouTube aendert sich oft; veraltetes yt-dlp ist die haeufigste Fehlerursache.
+rem Nur als Administrator (Schreibrechte auf tools) und nur fuer die eigene Kopie in tools.
+if not exist "tools\yt-dlp.exe" exit /b 0
+net session >nul 2>&1 || exit /b 0
+echo [yt-dlp] wird aktualisiert ...
+"tools\yt-dlp.exe" -U
+exit /b 0
 
 :firewall
 rem Eingehende Firewall-Regel fuer den Stream-Server (sonst kann der Lautsprecher

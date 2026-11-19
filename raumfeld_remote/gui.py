@@ -339,9 +339,11 @@ class App(ctk.CTk):
         # Programm-Status: ffmpeg und yt-dlp muessen vorhanden sein
         ffmpeg = finde_programm("ffmpeg")
         ytdlp = finde_programm("yt-dlp")
+        deno = finde_programm("deno")  # JavaScript-Laufzeit, die yt-dlp fuer YouTube braucht
         ctk.CTkLabel(tab, justify="left", anchor="w", text=(
             f"ffmpeg:  {ffmpeg or 'NICHT GEFUNDEN'}\n"
-            f"yt-dlp:  {ytdlp or 'NICHT GEFUNDEN'}\n\n"
+            f"yt-dlp:  {ytdlp or 'NICHT GEFUNDEN'}\n"
+            f"deno:    {deno or 'NICHT GEFUNDEN (YouTube liefert dann oft kein Audio)'}\n\n"
             "Fehlt etwas: in der Eingabeaufforderung  winget install yt-dlp.yt-dlp  und\n"
             "winget install Gyan.FFmpeg  ausführen (danach Programm neu starten),\n"
             "oder die .exe-Dateien in den Ordner „tools“ neben dieser Anwendung legen."

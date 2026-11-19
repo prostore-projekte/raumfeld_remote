@@ -19,7 +19,7 @@ import threading
 import urllib.parse
 
 from .protokoll import protokoll
-from .quellen import KEIN_FENSTER, finde_programm
+from .quellen import KEIN_FENSTER, finde_programm, js_runtime_argumente
 
 
 def _fehler_mitlesen(name: str, strom) -> None:
@@ -135,7 +135,11 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         # yt-dlp schreibt das beste Audio nach stdout ("-o -")
         ytdlp_befehl = [ytdlp_exe, "--quiet", "--no-playlist",  # Warnungen/Fehler -> Protokoll
                         *self.server.cookie_args,  # type: ignore[attr-defined]
+                        *js_runtime_argumente(),   # JavaScript-Laufzeit fuer YouTube
                         "-f", "bestaudio/best", "-o", "-", quelle]
+        if not js_runtime_argumente():
+            protokoll("  Hinweis: deno.exe nicht gefunden - YouTube liefert ohne JavaScript-Laufzeit "
+                      "oft kein Audio. start.bat erneut ausführen.")
         ytdlp = _starte("yt-dlp", ytdlp_befehl, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
         ffmpeg = _starte("ffmpeg",
             [ffmpeg_exe, "-hide_banner", "-loglevel", "error",
