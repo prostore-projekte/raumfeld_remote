@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.13.0 – 20.11.2026
+### Hinzugefügt
+- **Port-Suche für bekannte Boxen:** Antwortet eine gemerkte oder fest eingetragene Box nicht mehr, sucht der Dienst
+  sie am selben Host unter neuem Port (49152–65535, erkannt an derselben Geräte-UUID) und ersetzt die Adresse
+  automatisch. Nach einem erfolglosen Versuch 10 Minuten Pause für diese Adresse.
+
 ## 0.12.0 – 20.11.2026
 ### Geändert
 - **Schnellerer Start:** Große Playlists starten nach den ersten 25 Titeln, der Rest wird im Hintergrund nachgeladen

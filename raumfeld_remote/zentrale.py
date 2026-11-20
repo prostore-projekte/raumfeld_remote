@@ -24,6 +24,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -37,7 +38,7 @@ from .tidal import PRAEFIX as TIDAL_PRAEFIX
 from .tidal import QUALITAETEN as TIDAL_QUALITAETEN
 from .tidal import Tidal
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
-                   renderer_laden, renderer_suchen, setze_lautstaerke)
+                   port_neu_suchen, renderer_laden, renderer_suchen, setze_lautstaerke)
 
 # ---------------------------------------------------------------------------
 # Einstellungen des Dienstes
@@ -231,6 +232,9 @@ class Zentrale:
         self._zaehler = 0                         # fuer eindeutige Stream-Praefixe
         self.suche_laeuft = False
         self.letzte_suche = 0.0
+        # Port-Neusuche: URL -> Zeitpunkt des letzten erfolglosen Versuchs (nicht bei jeder
+        # Suche erneut ~30 s scannen, wenn eine Box z. B. ausgeschaltet ist)
+        self._neusuche_fehlschlag: dict[str, float] = {}
         # Spotify: ein gemeinsames Konto fuer alle (Token im Datenordner)
         self.spotify = Spotify(konfig_ordner() / "spotify_token.json", self.einst["spotify_client_id"])
         self._spotify_anmeldung: tuple[str, str] | None = None   # (verifier, state) waehrend der Anmeldung
@@ -300,6 +304,7 @@ class Zentrale:
             gefunden = renderer_suchen(timeout=4.0,
                                        zusatz_netze=self.einst["such_netze"],
                                        bekannte_urls=bekannte)
+            gefunden += self._ports_neu_suchen(bekannte, gefunden)
             with self._sperre:
                 for r in gefunden:
                     if r.location in self.boxen:
@@ -318,6 +323,60 @@ class Zentrale:
             with self._sperre:
                 self.suche_laeuft = False
                 self.letzte_suche = time.time()
+
+    def _ports_neu_suchen(self, bekannte: list[str], gefunden: list[Renderer]) -> list[Renderer]:
+        """
+        Gemerkte/eingetragene Geraete-URLs, die nicht geantwortet haben, unter neuem Port suchen
+        (der Port der Raumfeld-Boxen aendert sich offenbar bei einem Neustart).
+        Gefundene neue URLs ersetzen die alten in den Einstellungen. Rueckgabe: neu gefundene Renderer.
+        """
+        def schluessel(url: str) -> tuple:
+            teile = urllib.parse.urlparse(url)
+            return teile.hostname, teile.path   # Host + Pfad (UUID) = dieselbe Box
+
+        bereits = {schluessel(r.location) for r in gefunden}
+        jetzt = time.time()
+        veraltet = [u for u in dict.fromkeys(bekannte)
+                    if schluessel(u) not in bereits
+                    and jetzt - self._neusuche_fehlschlag.get(u, 0) > 600]   # 10 Min. Pause nach Fehlschlag
+        if not veraltet:
+            return []
+        protokoll(f"Suche {len(veraltet)} gemerkte Box(en) unter neuem Port …")
+        ergebnisse: dict[str, Renderer | None] = {}
+
+        def suchen(url: str) -> None:
+            ergebnisse[url] = port_neu_suchen(url)
+
+        threads = [threading.Thread(target=suchen, args=(u,), daemon=True) for u in veraltet]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        neu: list[Renderer] = []
+        ersetzungen: dict[str, str] = {}
+        for alt, r in ergebnisse.items():
+            if r is None:
+                self._neusuche_fehlschlag[alt] = time.time()
+                continue
+            self._neusuche_fehlschlag.pop(alt, None)
+            ersetzungen[alt] = r.location
+            if schluessel(r.location) not in bereits:
+                neu.append(r)
+                bereits.add(schluessel(r.location))
+        if ersetzungen:
+            # Alte URLs in beiden Listen durch die neuen ersetzen (Reihenfolge bleibt, keine Doppelten)
+            def tauschen(liste: list[str]) -> list[str]:
+                return list(dict.fromkeys(ersetzungen.get(u, u) for u in liste))
+            self.einst.setzen(manuelle_boxen=tauschen(self.einst["manuelle_boxen"]),
+                              bekannte_boxen=tauschen(self.einst["bekannte_boxen"]))
+            # Veraltete Eintraege aus der Lautsprecherliste nehmen (nur, wenn dort nichts laeuft)
+            with self._sperre:
+                for alt in ersetzungen:
+                    box = self.boxen.get(alt)
+                    if box and not (box.wiedergabe and box.wiedergabe.laeuft):
+                        del self.boxen[alt]
+        return neu
 
     def box_hinzufuegen(self, url: str) -> str:
         """Geraet per URL hinzufuegen und dauerhaft merken. Rueckgabe: Name."""

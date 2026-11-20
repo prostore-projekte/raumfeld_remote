@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import urllib.error
 import urllib.parse
@@ -261,6 +263,54 @@ def renderer_laden(location: str) -> Renderer | None:
     host = urllib.parse.urlparse(location).hostname or ""
     return Renderer(name=name, location=location, host=host,
                     avtransport_url=avt_url, rendering_url=rc_url)
+
+
+# Portbereich fuer die Neusuche: Die Geraete-URLs der Raumfeld-Boxen lagen bisher im
+# dynamischen Bereich (z. B. :60092, :54631) und aendern sich offenbar bei einem Neustart
+# der Box (Annahme aus zwei Beobachtungen, nicht dokumentiert).
+PORT_BEREICH = (49152, 65535)
+
+
+def port_neu_suchen(alte_url: str, bereich: tuple[int, int] = PORT_BEREICH,
+                    parallel: int = 256, verbindungs_timeout: float = 0.5) -> Renderer | None:
+    """
+    Sucht eine bekannte Box, deren Geraete-URL nicht mehr antwortet, unter neuem Port:
+      1. TCP-Verbindungsversuch auf jeden Port des Bereichs am selben Host (parallel)
+      2. auf offenen Ports dieselbe Beschreibungsdatei abrufen (Pfad enthaelt die UUID der Box,
+         z. B. /6fd00320-....xml) - so wird garantiert dieselbe Box gefunden
+    Dauer: geschlossene Ports antworten sofort, sonst bis ca. 16384 / parallel * Timeout
+    (bei den Standardwerten etwa 30 s). Rueckgabe: Renderer mit neuer URL oder None.
+    """
+    teile = urllib.parse.urlparse(alte_url)
+    host, pfad = teile.hostname, teile.path
+    if not host or not pfad or pfad == "/":
+        return None
+    gefunden: list[Renderer] = []
+    fertig = threading.Event()   # Abbruch, sobald die Box gefunden ist
+
+    def pruefen(port: int) -> None:
+        if fertig.is_set() or port == teile.port:
+            return
+        try:
+            with socket.create_connection((host, port), timeout=verbindungs_timeout):
+                pass
+        except OSError:
+            return   # Port zu oder nicht erreichbar
+        r = renderer_laden(f"{teile.scheme}://{host}:{port}{pfad}")
+        if r is not None:
+            gefunden.append(r)
+            fertig.set()
+
+    beginn = time.monotonic()
+    with ThreadPoolExecutor(max_workers=parallel) as pool:
+        # map() verbraucht die Ergebnisse nicht -> list() erzwingt das Abwarten
+        list(pool.map(pruefen, range(bereich[0], bereich[1] + 1)))
+    dauer = time.monotonic() - beginn
+    if gefunden:
+        protokoll(f"Box unter neuem Port gefunden ({dauer:.0f} s): {gefunden[0].name} → {gefunden[0].location}")
+        return gefunden[0]
+    protokoll(f"Box {host} unter keinem Port {bereich[0]}–{bereich[1]} gefunden ({dauer:.0f} s) – ausgeschaltet?")
+    return None
 
 
 def renderer_suchen(timeout: float = 3.0, zusatz_netze: list[str] | None = None,
