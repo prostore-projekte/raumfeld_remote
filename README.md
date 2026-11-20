@@ -59,8 +59,17 @@ Beim Deinstallieren bleibt dieser Ordner erhalten.
 - Das Token liegt in `C:\ProgramData\RaumfeldRemote\spotify_token.json` (nur Admins/SYSTEM).
 
 ## Projektstand
-Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
-Rückmeldungen aus der Statuszeile beim ersten Start helfen bei der Fehlersuche.
+- **Desktop-Programm:** unter Windows mit echten Raumfeld-Boxen über VPN getestet – Suche, Lautstärke und Wiedergabe
+  laufen (seit 0.7.0 mit `deno` für YouTube).
+- **Zentraler Dienst / Web-Oberfläche:** Installer, Dienst und Web-Oberfläche werden bei jedem Build automatisch auf
+  einem Windows-Rechner installiert und geprüft. Auf Windows Server 2025 mit echten Boxen und mit einem echten
+  Spotify-Konto **noch nicht getestet**.
+- Details und offene Punkte: [HANDOVER.md](HANDOVER.md).
+
+---
+
+# Einzelplatz-Variante (Desktop-Programm)
+Für einen einzelnen PC. Fürs Büro mit mehreren Benutzern bitte die **Büro-Installation** oben verwenden.
 
 ## Funktionen
 - Lautsprecher im Netzwerk **suchen** (SSDP), Auswahl per Klick, manuelles Hinzufügen per URL
@@ -93,7 +102,7 @@ Ist alles vorhanden, startet das Programm sofort ohne Konsolenfenster. Bei Fehle
 Stürzt das Programm beim Start ab, erscheint eine Meldung; der Fehler steht in `%APPDATA%\RaumfeldRemote\fehler.log`.
 (`installieren.bat` gibt es weiterhin, wird aber nicht mehr benötigt.)
 
-## Terminalserver (mehrere Benutzer)
+## Desktop-Programm auf einem Terminalserver (veraltet – besser den zentralen Dienst nutzen)
 1. Programmordner an einen gemeinsamen Ort legen, z. B. `C:\Programme\RaumfeldRemote`.
 2. Python **für alle Benutzer** installieren („Install for all users“).
 3. `start.bat` **einmal als Administrator** ausführen – installiert alles in den Programmordner und legt die
@@ -120,6 +129,10 @@ Einstellungen:
 ## Lautsprecher in einem anderen Netz (Router/VPN)
 Die automatische Suche nutzt Multicast; das wird von Routern und VPN-Verbindungen normalerweise nicht weitergeleitet.
 Stehen die Lautsprecher in einem anderen Netz (z. B. PC in `192.168.10.0/24`, Lautsprecher in `192.168.20.0/24`):
+
+**Web-Oberfläche:** ⚙ Einstellungen → **Netzwerk** → „Weitere Netze“ `192.168.20.0/24` → speichern → 🔍 Suchen.
+
+**Desktop-Programm:**
 1. Reiter **Einstellungen** → **Weitere Netze**: `192.168.20.0/24` eintragen (mehrere mit Komma) → **Speichern**.
 2. **Im Netzwerk suchen**. Das Programm fragt dann jede Adresse dieses Netzes einzeln an.
 3. Antworten die Lautsprecher darauf nicht (hängt von der Firmware ab), die Geräte-URL manuell eintragen.

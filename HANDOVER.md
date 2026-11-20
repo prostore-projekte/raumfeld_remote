@@ -2,6 +2,10 @@
 
 Stand: 20.11.2026 · Version 0.9.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
+**Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
+Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
+Nächste Schritte: Abschnitt 8.
+
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
 ## 1. Ziel
@@ -81,10 +85,10 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   „Signature/n challenge solving failed … JavaScript runtime“ und „Requested format is not available“ → 0 KB.
   0.7.0: deno als JavaScript-Laufzeit (`--js-runtimes deno:PFAD`, Option in yt-dlp 2026.10.26 geprüft),
   `start.bat` lädt deno und aktualisiert yt-dlp. Lokaler Test gegen YouTube nicht möglich (Sandbox-Freigabe verweigert).
-  Bestätigung „Ton da“ steht aus. Zusätzlich gemeldet: „SABR-only streaming experiment“ – Auswirkung unklar.
+  ✔ **Bestätigt (Sascha, 20.11.2026): „Läuft“** – Desktop-Programm spielt mit deno über VPN auf den Boxen.
 - Der Konto-Test (Playlist „LM“) prüft nur das Lesen der Playlist, nicht das Abspielen – „Konto ok“ heißt nicht „Audio ok“.
 - ✘ **GUI vor 19.11.2026 nie ausgeführt** (der Sandbox fehlte `tkinter`, Installation hing)
-- ✘ Nichts auf Windows, mit echter Raumfeld-Hardware oder mit Spotify-Konto getestet
+- ✔ Desktop-Programm auf Windows mit echten Boxen (VPN) getestet; ✘ Spotify-Konto noch nie echt getestet
 - ✘ `build_exe.bat` ungetestet
 - Ab 0.2.0: Workflow `.github/workflows/windows-build.yml` baut die .exe auf `windows-latest` und prüft pyflakes,
   GUI-Import und einen 10-Sekunden-Starttest. Ergebnis siehe GitHub Actions (kein Test mit echter Hardware).
@@ -109,41 +113,42 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - Das Spotify-Token liegt unverschlüsselt in `%APPDATA%/RaumfeldRemote/spotify_token.json`.
 
 ## 7. GitHub-Stand
-- Repo: **`prostore-projekte/raumfeld_remote`** (vom Nutzer bestätigt; `berion1982/raumfeld_remote` ist hinfällig).
-- `main` enthält nur einen leeren Startcommit (nötig als PR-Ziel, Repo war leer).
-- PR #1 (0.1.1) gemergt. 0.2.0 und 0.3.0 auf Branch `claude/ecstatic-mayer-gfo8yn`, neuer PR nach `main`.
-- Regel: Nach jedem Schritt pushen und PR erstellen/aktualisieren.
+- Repo: **`prostore-projekte/raumfeld_remote`** (`berion1982/raumfeld_remote` ist hinfällig).
+- Arbeitsbranch `claude/ecstatic-mayer-gfo8yn`; jeder Schritt → PR nach `main`, Sascha merged selbst.
+  Sascha merged `main` gelegentlich per PR zurück in den Branch → vor dem Push `git fetch` + `git merge` (kein Force-Push).
+- Stand 20.11.2026: PRs #1–#12 gemergt, `main` = **0.9.0**.
+- Workflow `.github/workflows/windows-build.yml`, zwei Jobs:
+  - `build`: Desktop-EXE + Starttest von `start.bat` (Artifact „RaumfeldRemote-windows“)
+  - `dienst-installer`: Dienst-EXE, Inno-Setup-Installer, **Installation/Prüfung/Deinstallation auf dem Runner**,
+    auf `main` zusätzlich **Release `vX.Y.Z`** mit `RaumfeldRemote-Setup-X.Y.Z.exe` (Artifact „RaumfeldRemote-Setup“)
 
-## 7a. Neue Architektur ab 0.8.0 (Büro, mehrere Benutzer)
+## 7a. Architektur ab 0.8.0 (Büro, mehrere Benutzer)
 - Sascha (Nutzer, **duzen**): Desktop-Variante war „eher Single-User“ (start.bat, Einstellungen nicht sauber für alle).
-  Wunsch: **Web-Oberfläche mit Passwort** auf dem Terminalserver (**Windows Server 2025**), mehrere Nutzer im Büro,
-  **Ruhezeiten** („ab 21:00 keine Musik“), richtiger **Installer für alle**.
+  Ziel: **Web-Oberfläche mit Passwort** auf dem Terminalserver (**Windows Server 2025**), mehrere Nutzer im Büro,
+  **Ruhezeiten** („ab 21:00 keine Musik“), richtiger **Installer für alle**, **Spotify** auch im Web.
 - Umsetzung: zentraler Dienst `zentrale.py` + Flask `web.py` + `dienst.py` (waitress), Windows-Dienst per **WinSW v2.12.0**,
-  Installer **Inno Setup** (`installer/raumfeld_remote.iss`), gebaut und auf dem Runner installiert/deinstalliert im Job
-  `dienst-installer`. Daten in `C:\ProgramData\RaumfeldRemote` (icacls: nur SYSTEM/Admins).
-- Lokal getestet: 18 API-Prüfungen (Login, Sperre, Ruhezeit, Einstellungen), Ablauf mit simuliertem UPnP-Renderer
-  (Abspielen, Lautstärke, Ruhezeit-Stopp), Oberfläche per Playwright (Desktop/Handy, keine JS-Fehler).
-- **Nicht** getestet: echter Windows Server 2025, echte Boxen über den Dienst, Inno/WinSW nur im CI.
-- Entscheidungen/Annahmen: Ein Passwort für alle (keine Rollen). Ersteinrichtung nur von localhost. YouTube-Anmeldung
-  im Dienst nur per hochgeladener `cookies.txt` (Dienst läuft als SYSTEM, kein Browser). **Spotify im Dienst noch nicht.**
-  Ports fest 8080/8765 (Firewall-Regeln im Installer); Änderung des Web-Ports nur über `dienst.json` + eigene Firewall-Regel.
-- Desktop-Programm (`gui.py`, start.bat) bleibt für Einzelplätze erhalten.
+  Installer **Inno Setup** (`installer/raumfeld_remote.iss`). Daten in `C:\ProgramData\RaumfeldRemote`
+  (`dienst.json`, `cookies.txt`, `spotify_token.json`, `stream.log`, `logs\`; icacls: nur SYSTEM/Admins).
+- Spotify (0.9.0): ein gemeinsames Konto; Anmeldung per eingefügter Rückruf-Adresse `http://127.0.0.1:8888/callback?code=…`
+  (Dienst hat keinen Browser, Spotify verlangt HTTPS oder Loopback als Redirect). Wiedergabe über YouTube-Suche auf
+  Raumfeld-Boxen oder per Spotify Connect; Ruhezeit pausiert Connect.
+- Lokal getestet: API mit Flask-Testclient (Login, Sperre, Ruhezeit, Einstellungen, Spotify mit simulierten Antworten),
+  Ablauf mit simuliertem UPnP-Renderer, Oberfläche per Playwright. Installer/Dienst nur im CI auf Windows.
+- **Nicht** getestet: echter Windows Server 2025, echte Boxen über den Dienst, echtes Spotify-Konto.
+- Entscheidungen: ein Passwort für alle (keine Rollen); Ersteinrichtung nur von localhost; YouTube-Anmeldung im Dienst nur
+  per `cookies.txt`-Upload; Ports fest 8080/8765 (Firewall-Regeln im Installer).
+- Desktop-Programm (`gui.py`, `start.bat`, `installieren.bat`) bleibt für Einzelplätze erhalten.
 
 ## 8. Offene Punkte / nächste Schritte
-0. **Installer auf dem Terminalserver testen** (Artifact „RaumfeldRemote-Setup“), Passwort setzen, Netze/Ruhezeiten
-   einstellen, von einem Büro-PC aus abspielen. Danach entscheiden, ob Desktop-Variante/start.bat entfallen.
-0a. Sascha hatte den Quellcode geladen und `installieren.bat` ausgeführt (alte Desktop-Variante) → kein Dienst.
-    Ab 0.9.0 liegt die Setup-EXE als **Release** auf der Repo-Seite; README weist darauf hin. Installation steht noch aus.
-0b. ✔ 0.9.0: Spotify in der Web-Oberfläche (Anmeldung per eingefügter Rückruf-Adresse `127.0.0.1:8888/callback`,
-    via YouTube oder Spotify Connect). Lokal mit simulierten Spotify-Antworten getestet; **echtes Konto ungetestet**.
-    Offen: ggf. Benutzerrollen (Admin-Passwort).
-1. Neuen PR (0.2.0 + 0.3.0) prüfen und mergen (siehe Abschnitt 7).
-2. **Erster Start auf Windows 11** → Fehlermeldungen aus der Statuszeile zurückmelden.
-3. Windows-Firewall-Regel für Port 8765 (privates Netz) setzen; Netzwerkprofil „Privat“ prüfen.
-4. Einstellungen → „Weitere Netze“ `192.168.20.0/24` eintragen, suchen; sonst Geräte-URL manuell (Muster siehe Abschnitt 2). Danach Wiedergabe über das VPN testen.
-5. Spotify-App im Developer Dashboard anlegen, Redirect-URI eintragen, Client-ID einfügen, beide Wiedergabewege testen.
-6. Fehlende Funktionen (bewusst weggelassen): **Warteschlangenansicht**, **Fortschrittsanzeige**, Zonen-/Gruppenverwaltung von Raumfeld.
-7. Fertige .exe aus GitHub Actions (Artifact „RaumfeldRemote-windows“) auf Windows 11 testen.
+1. **Release v0.9.0 prüfen** (Repo-Seite → Releases) – erstes automatisch angelegtes Release.
+2. **Installer auf dem Terminalserver installieren** (Release-Datei, nicht den Quellcode/`installieren.bat`!),
+   am Server `http://localhost:8080` → Passwort setzen; Netz `192.168.20.0/24`, Ruhezeiten einstellen; von einem Büro-PC
+   `http://<server>:8080` öffnen und abspielen. Bei Problemen: Protokoll aus der Web-Oberfläche.
+3. Spotify: App im Developer Dashboard (Redirect `http://127.0.0.1:8888/callback`), Client-ID + Anmeldung in der
+   Web-Oberfläche, beide Wiedergabewege testen.
+4. Danach entscheiden, ob Desktop-Variante/`start.bat` entfallen.
+5. Ideen (nicht beauftragt): Benutzerrollen (Admin-Passwort für Einstellungen), Lautstärke-Obergrenze,
+   Fortschrittsanzeige, Raumfeld-Zonen/Gruppen.
 
 ## 9. Arbeitsregeln des Nutzers (für Folgesitzungen)
 - Antworten auf Deutsch; bei Unsicherem das klar sagen, nichts erfinden, Annahmen kennzeichnen.
@@ -168,3 +173,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.7.0 | Ursache „kein Ton“: yt-dlp ohne JavaScript-Laufzeit → deno ergänzt, yt-dlp-Update in `start.bat` |
 | 20.11.2026 | 0.8.0 | Zentraler Dienst mit Web-Oberfläche, Passwort, Ruhezeiten, Installer (Inno Setup + WinSW) |
 | 20.11.2026 | 0.9.0 | Spotify in der Web-Oberfläche; Releases mit Setup-EXE |
+| 20.11.2026 | 0.9.0 | HANDOVER aufgeräumt (GitHub-Stand, Architektur, offene Punkte), README nach Varianten gegliedert |
