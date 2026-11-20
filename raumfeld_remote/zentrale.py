@@ -32,6 +32,9 @@ from .protokoll import protokoll
 from .quellen import KEIN_FENSTER, Titel, finde_programm, titel_liste_aufbauen
 from .spotify import Spotify, SpotifyFehler
 from .stream_server import StreamServer
+from .tidal import PRAEFIX as TIDAL_PRAEFIX
+from .tidal import QUALITAETEN as TIDAL_QUALITAETEN
+from .tidal import Tidal
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
                    renderer_laden, renderer_suchen, setze_lautstaerke)
 
@@ -55,6 +58,7 @@ STANDARD: dict = {
     # "bis" vor "von" bedeutet: ueber Mitternacht (z. B. 21:00 bis 07:00)
     "ruhezeiten": [],
     "spotify_client_id": "",    # Client-ID der eigenen Spotify-Developer-App
+    "tidal_qualitaet": "LOSSLESS",  # Tidal-Quelle: "LOSSLESS" (FLAC) oder "HIGH" (AAC 320)
 }
 
 def port_pruefen(wert, bezeichnung: str) -> int:
@@ -222,6 +226,8 @@ class Zentrale:
         self.spotify = Spotify(konfig_ordner() / "spotify_token.json", self.einst["spotify_client_id"])
         self._spotify_anmeldung: tuple[str, str] | None = None   # (verifier, state) waehrend der Anmeldung
         self.spotify_geraet = ""   # zuletzt per Spotify Connect gestartetes Geraet (fuer Ruhezeit-Pause)
+        # Tidal: gemeinsames Konto, Zugang dauerhaft in tidal_sitzung.json
+        self.tidal = Tidal(konfig_ordner() / "tidal_sitzung.json", self.einst["tidal_qualitaet"])
 
     # ------------------------------------------------------------ Start
     def starten(self) -> None:
@@ -291,6 +297,8 @@ class Zentrale:
                 self.server = StreamServer(int(self.einst["stream_port"]),
                                            self.einst["bitrate"], self._cookie_args())
                 self.server.starten()
+                # Titel "tidal:<ID>" loest der Stream-Server erst beim Abruf ueber Tidal auf
+                self.server.aufloeser[TIDAL_PRAEFIX.rstrip(":")] = self.tidal.stream_adresse
             self.server.cookie_args = self._cookie_args()  # evtl. neue cookies.txt
             return self.server
 
@@ -352,6 +360,46 @@ class Zentrale:
             box.gestartet_von = wer
             box.wiedergabe.starte(liste, mischen=zufall)
         return f"{len(liste)} Titel auf {box.renderer.name} gestartet."
+
+    # ------------------------------------------------------------ Tidal
+    def tidal_status(self) -> dict:
+        """Zustand des Tidal-Kontos fuer die Oberflaeche."""
+        anmeldung = self.tidal.anmeldung
+        if anmeldung and not anmeldung["fehler"] and time.time() > anmeldung["bis"]:
+            anmeldung = dict(anmeldung, fehler="Der Code ist abgelaufen – bitte neu anmelden.")
+        return {"verfuegbar": self.tidal.verfuegbar(),
+                "angemeldet": self.tidal.angemeldet(),
+                "benutzer": self.tidal.benutzer,
+                "anmeldung": anmeldung,
+                "qualitaet": self.tidal.qualitaet}
+
+    def tidal_anmelden_start(self, wer: str) -> dict:
+        protokoll(f"{wer}: Tidal-Anmeldung angefordert.")
+        return self.tidal.anmelden_start()
+
+    def tidal_abmelden(self, wer: str) -> None:
+        self.tidal.abmelden()
+        protokoll(f"{wer}: Tidal-Konto getrennt.")
+
+    def tidal_playlists(self) -> list[dict]:
+        return self.tidal.playlists()
+
+    def tidal_abspielen(self, location: str, eingabe: str, zufall: bool, wer: str) -> str:
+        """
+        Tidal-Playlist, -Favoriten, -Link oder -Suche auf einem Raumfeld-Lautsprecher abspielen.
+        Der Ton kommt direkt von Tidal (nicht ueber YouTube); ffmpeg wandelt ihn in MP3.
+        """
+        self._ruhezeit_sperre()
+        if finde_programm("ffmpeg") is None:
+            raise ValueError("ffmpeg fehlt auf dem Server – bitte neu installieren.")
+        box = self._box(location)
+        titel, beschreibung = self.tidal.titel_liste(eingabe)
+        if not titel:
+            raise ValueError("Keine abspielbaren Tidal-Titel gefunden.")
+        protokoll(f"{wer}: Tidal {beschreibung} ({len(titel)} Titel) auf {box.renderer.name}")
+        liste = [Titel(f"{TIDAL_PRAEFIX}{kennung}", name) for kennung, name in titel]
+        meldung = self._liste_starten(box, liste, zufall, wer)
+        return f"Tidal: {beschreibung} – {meldung}"
 
     # ------------------------------------------------------------ Spotify
     def spotify_status(self) -> dict:
@@ -537,6 +585,11 @@ class Zentrale:
             if neu["bitrate"] not in ("128k", "192k", "256k", "320k"):
                 raise ValueError("Ungültige Bitrate.")
             werte["bitrate"] = neu["bitrate"]
+        if "tidal_qualitaet" in neu:
+            if neu["tidal_qualitaet"] not in TIDAL_QUALITAETEN:
+                raise ValueError("Ungültige Tidal-Qualität.")
+            werte["tidal_qualitaet"] = neu["tidal_qualitaet"]
+            self.tidal.qualitaet_setzen(neu["tidal_qualitaet"])
         if "favoriten" in neu:
             werte["favoriten"] = [{"name": str(f["name"])[:100], "url": str(f["url"])[:1000]}
                                   for f in neu["favoriten"] if f.get("url")]

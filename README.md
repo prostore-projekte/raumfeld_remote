@@ -31,7 +31,8 @@ Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im
    - Startmenü-Eintrag „Raumfeld Remote“ für alle Benutzer
 3. Am Ende öffnet sich `http://localhost:8766` (bzw. der gewählte Port) – dort das **Zugangspasswort** festlegen. Das geht aus Sicherheitsgründen
    nur direkt am Server.
-4. In der Web-Oberfläche unter **⚙ Einstellungen**: weitere Netze (z. B. `192.168.20.0/24`), Ruhezeiten, ggf. YouTube-Anmeldung.
+4. In der Web-Oberfläche unter **⚙ Einstellungen**: weitere Netze (z. B. `192.168.20.0/24`), Ruhezeiten;
+   unter **🔑 Konten**: YouTube, Spotify, Tidal anmelden (einmalig, bleibt gespeichert).
 
 Lautlos installieren (z. B. Softwareverteilung): `RaumfeldRemote-Setup-x.y.z.exe /VERYSILENT /SUPPRESSMSGBOXES`
 (anderer Port: zusätzlich `/WEBPORT=9000`)
@@ -56,14 +57,14 @@ Lokal unter Windows bauen (dieselben Schritte wie im Workflow; lokal so noch nic
 1. Python 3.12 und [Inno Setup 6](https://jrsoftware.org/isinfo.php) installieren.
 2. Im Projektordner: `pip install -r requirements-dienst.txt pyinstaller`
 3. Dienst bauen:
-   `pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" dienst_start.py`
+   `pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" --hidden-import tidalapi --collect-submodules tidalapi dienst_start.py`
 4. Ordner `paket_dienst` anlegen und füllen:
    - Inhalt von `dist\RaumfeldRemoteDienst\` hineinkopieren, dazu `installer\RaumfeldRemote-Dienst.xml`, `README.md`, `CHANGELOG.md`
    - [WinSW-x64.exe v2.12.0](https://github.com/winsw/winsw/releases/tag/v2.12.0) als `paket_dienst\RaumfeldRemote-Dienst.exe` speichern
    - In `paket_dienst\tools\`: `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe`
 5. Installer erzeugen (Version wie in `raumfeld_remote/__init__.py`):
-   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.10.0 installer\raumfeld_remote.iss`
-6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.10.0.exe`
+   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.11.0 installer\raumfeld_remote.iss`
+6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.11.0.exe`
 
 **Funktionen der Web-Oberfläche:**
 - Anmeldung mit einem gemeinsamen Passwort (30 Tage angemeldet bleiben; Sperre nach 5 Fehlversuchen für 10 Minuten)
@@ -84,7 +85,7 @@ Beim Deinstallieren bleibt dieser Ordner erhalten.
 **Spotify in der Web-Oberfläche** (ein gemeinsames Konto für alle):
 1. Auf [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) eine App anlegen, als Redirect-URI
    `http://127.0.0.1:8888/callback` eintragen, die **Client-ID** kopieren.
-2. Web-Oberfläche → ⚙ Einstellungen → **Spotify-Konto**: Client-ID speichern, **„Bei Spotify anmelden“**.
+2. Web-Oberfläche → 🔑 Konten → **Spotify**: Client-ID speichern, **„Bei Spotify anmelden“**.
 3. Nach der Anmeldung zeigt der Browser „Seite nicht erreichbar“ (`127.0.0.1:8888`) – das ist richtig. Die komplette
    Adresse aus der Adresszeile kopieren, einfügen, **„Anmeldung abschließen“**.
 4. Karte **Spotify**: Playlist wählen und abspielen –
@@ -93,6 +94,18 @@ Beim Deinstallieren bleibt dieser Ordner erhalten.
    - **Spotify Connect**: Spotify spielt selbst auf einem Spotify-Gerät (nach Kenntnisstand Premium nötig)
 - Ruhezeiten gelten auch für Spotify (Connect wird pausiert).
 - Das Token liegt in `C:\ProgramData\RaumfeldRemote\spotify_token.json` (nur Admins/SYSTEM).
+
+**Tidal in der Web-Oberfläche** (ein gemeinsames Konto für alle, Tidal-Abo nötig):
+1. 🔑 Konten → **Tidal** → **„Bei Tidal anmelden“**. Es öffnet sich `link.tidal.com` mit einem Code (geht auch am Handy):
+   bei Tidal anmelden und bestätigen. Die Web-Oberfläche merkt die Anmeldung von selbst.
+2. Karte **Tidal**: Playlist wählen (inkl. „Meine Titel“) **oder** Interpret, Titel bzw. Tidal-Link eingeben
+   (Playlist, Album, Titel, Interpret) → **▶ Abspielen**. Der Ton kommt **direkt von Tidal** (nicht über YouTube)
+   und landet in der normalen Warteschlange des gewählten Lautsprechers.
+3. Qualität der Quelle: verlustfrei (FLAC) oder AAC 320 kbit/s. An die Boxen geht wie immer MP3 (Bitrate siehe Einstellungen).
+- **Wichtig:** Genutzt wird die **inoffizielle** Tidal-Schnittstelle (Bibliothek `tidalapi`). Sie kann sich jederzeit
+  ändern, und die Nutzung verstößt vermutlich gegen Tidals Nutzungsbedingungen. Mit einem echten Konto noch **nicht getestet**.
+- Ruhezeiten gelten auch für Tidal. Der Zugang liegt in `C:\ProgramData\RaumfeldRemote\tidal_sitzung.json` (nur Admins/SYSTEM).
+  Ein Passwort wird nicht gespeichert – Tidal lässt die Anmeldung nur über die eigene Seite zu.
 
 ## Projektstand
 - **Desktop-Programm:** unter Windows mit echten Raumfeld-Boxen über VPN getestet – Suche, Lautstärke und Wiedergabe

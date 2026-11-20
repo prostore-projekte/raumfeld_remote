@@ -122,10 +122,10 @@ jobs:
       - name: Pruefen (pyflakes, Import)
         run: |
           python -m pyflakes raumfeld_remote dienst_start.py
-          python -c "import raumfeld_remote.web, raumfeld_remote.zentrale, raumfeld_remote.dienst"
+          python -c "import raumfeld_remote.web, raumfeld_remote.zentrale, raumfeld_remote.dienst, tidalapi"
 
       - name: Dienst-EXE bauen (PyInstaller, Ordner-Variante)
-        run: pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" dienst_start.py
+        run: pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" --hidden-import tidalapi --collect-submodules tidalapi dienst_start.py
 
       - name: Paket zusammenstellen (Dienst, WinSW, yt-dlp, ffmpeg, deno)
         run: |

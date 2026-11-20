@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.11.0 – 20.11.2026
+### Hinzugefügt
+- **Tidal** in der Web-Oberfläche: Anmeldung per Code (link.tidal.com), Playlists, „Meine Titel“, Suche nach
+  Interpret/Titel und Tidal-Links; Ton direkt von Tidal (FLAC oder AAC), auf den Boxen als MP3.
+  Nutzt die inoffizielle Schnittstelle (`tidalapi`) – kann jederzeit brechen.
+- Bereich **🔑 Konten**: YouTube, Spotify und Tidal an einer Stelle; Zugänge bleiben dauerhaft gespeichert
+### Geändert
+- YouTube- und Spotify-Anmeldung aus den Einstellungen in den Bereich „Konten“ verschoben
+
 ## 0.10.0 – 20.11.2026
 ### Hinzugefügt
 - **Ports einstellbar**: Web-Oberfläche und Stream unter ⚙ Einstellungen → Ports, Knopf „Dienst jetzt neu starten“

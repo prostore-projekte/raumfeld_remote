@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.10.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.11.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -121,7 +121,7 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - Repo: **`prostore-projekte/raumfeld_remote`** (`berion1982/raumfeld_remote` ist hinfällig).
 - Arbeitsbranch `claude/ecstatic-mayer-gfo8yn`; jeder Schritt → PR nach `main`, Sascha merged selbst.
   Sascha merged `main` gelegentlich per PR zurück in den Branch → vor dem Push `git fetch` + `git merge` (kein Force-Push).
-- Stand 20.11.2026: PRs #1–#14 gemergt, `main` = **0.9.2**; 0.10.0 (Ports, Firewall-Programmregel, Suchdiagnose) im nächsten PR.
+- Stand 20.11.2026: PRs #1–#14 gemergt, `main` = **0.9.2**; 0.10.0 (Ports, Firewall-Programmregel, Suchdiagnose) und 0.11.0 (Tidal, Konten) in PR #16.
 - Workflow `.github/workflows/windows-build.yml`, zwei Jobs:
   - `build`: Desktop-EXE + Starttest von `start.bat` (Artifact „RaumfeldRemote-windows“)
   - `dienst-installer`: Dienst-EXE, Inno-Setup-Installer, **Installation/Prüfung/Deinstallation auf dem Runner**,
@@ -145,12 +145,22 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   Programmregel „Raumfeld Remote Dienst“; Neustart per `os._exit(1)` → WinSW `onfailure restart` (im CI getestet).
 - Desktop-Programm (`gui.py`, `start.bat`, `installieren.bat`) bleibt für Einzelplätze erhalten.
 
+### Tidal (ab 0.11.0)
+- Sascha wollte ausdrücklich **echten Tidal-Ton** (Weg 2), nicht YouTube-Ersatz; die Raumfeld-App kann Tidal heute noch.
+  Tidal-Webseite/Firefox-Add-on wurden verworfen: Browser spielt nur lokal, Ton ist DRM-geschützt.
+- `tidal.py`: `tidalapi` (inoffiziell), Anmeldung per Geräte-Code, Zugang in `tidal_sitzung.json` (wird bei Erneuerung
+  neu gespeichert). Warteschlange: Quelle `tidal:<ID>`; der Stream-Server löst sie erst beim Abruf über
+  `StreamServer.aufloeser` auf (Adressen sind kurz gültig) → ffmpeg → MP3. MPD-Streams als temporäre HLS-Liste.
+- Getestet nur mit simulierter Sitzung (Flask-Testclient, Stream-Server mit lokaler Datei, Playwright). **Kein echtes Konto.**
+- „Konten“: Passwort speichern ist bei YouTube/Spotify/Tidal nicht möglich (nur Anmeldung über deren Seite);
+  stattdessen wird der Zugang dauerhaft gespeichert. Sascha: „passt so“.
+
 ## 8. Offene Punkte / nächste Schritte
 1. **0.10.0 auf dem Server installieren** und prüfen: Boxen im Netz 192.168.20.0/24 gefunden? Sonst Protokoll-Zeilen
    „Suche in weiteren Netzen …“ ansehen.
-   **Wartet auf Sascha:** Tidal (Weg klären: offizielle API + YouTube-Suche wie Spotify oder inoffizieller Stream;
-   Firefox-Add-on bzw. Tidal-Webseite liefern keinen Ton an die Boxen, DRM) und „Konten“-Bereich (Benutzername/Passwort
-   speichern geht bei YouTube/Spotify/Tidal nicht direkt, nur einmalige Anmeldung mit dauerhaft gespeichertem Zugang).
+2a. **Tidal mit echtem Konto testen** (🔑 Konten → Tidal anmelden, Playlist abspielen). Bei Fehlern Protokoll ansehen
+   (Zeilen „Tidal: …“). Unbekannt: ob die Geräte-Anmeldung von `tidalapi` 0.8.11 (eingebaute Client-ID) heute noch
+   funktioniert und ob `get_url()` bei LOSSLESS eine Datei-URL liefert (sonst Weg über Stream-Manifest/HLS).
 2. **Installer auf dem Terminalserver installieren** (Release-Datei, nicht den Quellcode/`installieren.bat`!),
    am Server `http://localhost:8766` → Passwort setzen; Netz `192.168.20.0/24`, Ruhezeiten einstellen; von einem Büro-PC
    `http://<server>:8766` öffnen und abspielen. Bei Problemen: Protokoll aus der Web-Oberfläche.
@@ -186,3 +196,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.9.1 | HANDOVER aufgeräumt (GitHub-Stand, Architektur, offene Punkte), README nach Varianten gegliedert |
 | 20.11.2026 | 0.9.2 | README: Link zur Setup-EXE, Abschnitt „Setup-EXE selbst bauen“ |
 | 20.11.2026 | 0.10.0 | Ports einstellbar (Standard 8766), Firewall-Programmregel, Suchdiagnose, Neusuche nach Netzänderung |
+| 20.11.2026 | 0.11.0 | Tidal (inoffizielle API `tidalapi`, Geräte-Code, Ton direkt von Tidal), Bereich „Konten“ |
