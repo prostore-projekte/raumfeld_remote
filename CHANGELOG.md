@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.9.1 – 20.11.2026
+### Geändert
+- README nach Büro- und Einzelplatz-Variante gegliedert, Projektstand aktualisiert
+- HANDOVER: Kurzüberblick, GitHub-Stand, Architektur und offene Punkte auf aktuellen Stand gebracht
+
 ## 0.9.0 – 20.11.2026
 ### Hinzugefügt
 - **Spotify in der Web-Oberfläche**: gemeinsames Konto (Client-ID + Anmeldung per eingefügter Rückruf-Adresse),
@@ -10,9 +15,7 @@ MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
   inkl. Steuerung; Ruhezeiten sperren Spotify und pausieren Connect
 - **Releases**: Bei jedem Stand auf `main` legt der Workflow ein Release `vX.Y.Z` mit der Setup-EXE an
 ### Geändert
-- README: Hinweis, dass `installieren.bat`/`start.bat` nur die Einzelplatz-Variante sind; README nach Büro- und
-  Einzelplatz-Variante gegliedert, Projektstand aktualisiert
-- HANDOVER: GitHub-Stand, Architektur und offene Punkte auf aktuellen Stand gebracht
+- README: Hinweis, dass `installieren.bat`/`start.bat` nur die Einzelplatz-Variante sind
 
 ## 0.8.0 – 20.11.2026
 ### Hinzugefügt

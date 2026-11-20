@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.9.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.9.1 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -116,7 +116,7 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - Repo: **`prostore-projekte/raumfeld_remote`** (`berion1982/raumfeld_remote` ist hinfällig).
 - Arbeitsbranch `claude/ecstatic-mayer-gfo8yn`; jeder Schritt → PR nach `main`, Sascha merged selbst.
   Sascha merged `main` gelegentlich per PR zurück in den Branch → vor dem Push `git fetch` + `git merge` (kein Force-Push).
-- Stand 20.11.2026: PRs #1–#12 gemergt, `main` = **0.9.0**.
+- Stand 20.11.2026: PRs #1–#12 gemergt, `main` = **0.9.0**; 0.9.1 (nur Doku) im nächsten PR.
 - Workflow `.github/workflows/windows-build.yml`, zwei Jobs:
   - `build`: Desktop-EXE + Starttest von `start.bat` (Artifact „RaumfeldRemote-windows“)
   - `dienst-installer`: Dienst-EXE, Inno-Setup-Installer, **Installation/Prüfung/Deinstallation auf dem Runner**,
@@ -173,4 +173,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.7.0 | Ursache „kein Ton“: yt-dlp ohne JavaScript-Laufzeit → deno ergänzt, yt-dlp-Update in `start.bat` |
 | 20.11.2026 | 0.8.0 | Zentraler Dienst mit Web-Oberfläche, Passwort, Ruhezeiten, Installer (Inno Setup + WinSW) |
 | 20.11.2026 | 0.9.0 | Spotify in der Web-Oberfläche; Releases mit Setup-EXE |
-| 20.11.2026 | 0.9.0 | HANDOVER aufgeräumt (GitHub-Stand, Architektur, offene Punkte), README nach Varianten gegliedert |
+| 20.11.2026 | 0.9.1 | HANDOVER aufgeräumt (GitHub-Stand, Architektur, offene Punkte), README nach Varianten gegliedert |

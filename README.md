@@ -6,7 +6,7 @@ daneben weiterhin das Desktop-Programm für Einzelplätze.
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.9.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.9.1 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Büro-Installation: zentraler Dienst mit Web-Oberfläche (empfohlen)
 Ein Dienst auf dem Server (z. B. Terminalserver, Windows Server 2025) übernimmt Suche, Wiedergabe, Warteschlange,
