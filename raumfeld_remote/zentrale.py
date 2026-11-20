@@ -17,11 +17,14 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import secrets
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .einstellungen import konfig_ordner
 from .player import Wiedergabe
@@ -40,7 +43,9 @@ from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
 STANDARD: dict = {
     "passwort_hash": "",        # PBKDF2-Hash des Zugangspassworts (leer = noch nicht eingerichtet)
     "geheimschluessel": "",     # Schluessel fuer Sitzungs-Cookies (wird beim ersten Start erzeugt)
-    "web_port": 8080,           # Port der Web-Oberflaeche
+    # Port der Web-Oberflaeche. Bewusst nicht 8080 (dort laufen oft schon andere Dienste).
+    # Aenderbar in der Web-Oberflaeche und im Installer; wirkt nach Neustart des Dienstes.
+    "web_port": 8766,
     "stream_port": 8765,        # Port, von dem die Lautsprecher den Stream holen
     "bitrate": "320k",          # MP3-Bitrate
     "such_netze": [],           # weitere Netze fuer die Suche, z. B. ["192.168.20.0/24"]
@@ -51,6 +56,33 @@ STANDARD: dict = {
     "ruhezeiten": [],
     "spotify_client_id": "",    # Client-ID der eigenen Spotify-Developer-App
 }
+
+def port_pruefen(wert, bezeichnung: str) -> int:
+    """Prueft eine Portangabe aus der Oberflaeche. Wirft ValueError mit deutscher Meldung."""
+    try:
+        port = int(str(wert).strip())
+    except ValueError:
+        raise ValueError(f"{bezeichnung}: bitte eine Zahl angeben.") from None
+    # Unter 1024 sind Systemdienste ueblich, 49152 und hoeher vergibt Windows dynamisch
+    if not 1024 <= port <= 49151:
+        raise ValueError(f"{bezeichnung}: erlaubt ist 1024 bis 49151.")
+    return port
+
+
+def verknuepfung_schreiben(port: int) -> None:
+    """
+    Aktualisiert die Startmenue-Verknuepfung "Raumfeld Remote.url" im Programmordner,
+    damit sie nach einer Portaenderung auf den richtigen Port zeigt.
+    Nur in der installierten Fassung (PyInstaller-EXE); beim Entwickeln passiert nichts.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    datei = Path(sys.executable).parent / "Raumfeld Remote.url"
+    try:
+        datei.write_text(f"[InternetShortcut]\r\nURL=http://localhost:{port}/\r\n", encoding="ascii")
+    except OSError as exc:
+        protokoll(f"✗ Startmenü-Verknüpfung nicht aktualisiert: {exc}")
+
 
 # Wochentage fuer Meldungen (Index wie datetime.weekday())
 WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -478,9 +510,19 @@ class Zentrale:
         return {k: self.einst[k] for k in STANDARD
                 if k not in ("passwort_hash", "geheimschluessel")}
 
-    def einstellungen_speichern(self, neu: dict) -> None:
-        """Prueft und speichert Einstellungen aus der Web-Oberflaeche."""
+    def einstellungen_speichern(self, neu: dict) -> bool:
+        """
+        Prueft und speichert Einstellungen aus der Web-Oberflaeche.
+        Rueckgabe: True, wenn ein Port geaendert wurde (wirkt erst nach Neustart des Dienstes).
+        """
         werte: dict = {}
+        # Ports: beide pruefen und gegeneinander abgleichen
+        web_port = port_pruefen(neu.get("web_port", self.einst["web_port"]), "Port der Web-Oberfläche")
+        stream_port = port_pruefen(neu.get("stream_port", self.einst["stream_port"]), "Stream-Port")
+        if web_port == stream_port:
+            raise ValueError("Web-Oberfläche und Stream brauchen verschiedene Ports.")
+        neustart_noetig = (web_port != self.einst["web_port"] or stream_port != self.einst["stream_port"])
+        werte["web_port"], werte["stream_port"] = web_port, stream_port
         if "such_netze" in neu:
             netze = [str(n).strip() for n in neu["such_netze"] if str(n).strip()]
             ungueltig = [n for n in netze if not netz_adressen([n])]
@@ -498,12 +540,28 @@ class Zentrale:
         if "favoriten" in neu:
             werte["favoriten"] = [{"name": str(f["name"])[:100], "url": str(f["url"])[:1000]}
                                   for f in neu["favoriten"] if f.get("url")]
+        netze_neu = "such_netze" in werte and werte["such_netze"] != self.einst["such_netze"]
         self.einst.setzen(**werte)
+        if netze_neu:
+            # Geaenderte Netze sofort durchsuchen, nicht erst beim naechsten Klick auf "Suchen"
+            self.suchen_im_hintergrund()
         if "bitrate" in werte and self.server:
             self.server.bitrate = werte["bitrate"]  # gilt ab dem naechsten Titel
         protokoll(f"Einstellungen geändert: {', '.join(werte) or '–'}")
         # Neue Ruhezeit greift sofort
         self._ruhezeit_pruefen_einmal()
+        return neustart_noetig
+
+    def neu_starten(self) -> None:
+        """
+        Beendet den Prozess nach kurzer Verzoegerung (damit die HTTP-Antwort noch rausgeht).
+        Der Exit-Code 1 gilt fuer WinSW als Absturz -> es startet den Dienst nach
+        10 Sekunden neu (<onfailure action="restart"> in RaumfeldRemote-Dienst.xml).
+        So greifen geaenderte Ports, ohne dass jemand an den Server muss.
+        """
+        protokoll("Dienst wird auf Wunsch neu gestartet …")
+        self.alles_stoppen("Dienst wird neu gestartet.")
+        threading.Timer(1.5, os._exit, args=(1,)).start()
 
     # ------------------------------------------------------------ Hintergrund
     def _ruhezeit_pruefen_einmal(self) -> None:

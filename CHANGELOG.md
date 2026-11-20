@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.10.0 – 20.11.2026
+### Hinzugefügt
+- **Ports einstellbar**: Web-Oberfläche und Stream unter ⚙ Einstellungen → Ports, Knopf „Dienst jetzt neu starten“
+  (Seite springt danach auf den neuen Port); Installer fragt den Port ab (lautlos: `/WEBPORT=nnnn`)
+- Diagnose der Suche im Protokoll: angefragte Adressen, antwortende Geräte, Sendefehler (fehlende Route)
+### Geändert
+- Standard-Port der Web-Oberfläche **8766** statt 8080 (8080 ist oft schon belegt); bei Updates wird 8080 ersetzt
+- Firewall: eine Programmregel „Raumfeld Remote Dienst“ statt zwei Port-Regeln
+### Behoben
+- Lautsprecher in anderen Netzen wurden vom Dienst nicht gefunden: Die Windows-Firewall verwarf die UDP-Antworten,
+  weil es für den Dienst keine Programmfreigabe gab (wahrscheinliche Ursache, siehe HANDOVER)
+- Nach dem Speichern geänderter Netze startet die Suche sofort
+
 ## 0.9.2 – 20.11.2026
 ### Geändert
 - README: direkter Link zur Setup-EXE (Releases) und neuer Abschnitt „Setup-EXE selbst bauen“

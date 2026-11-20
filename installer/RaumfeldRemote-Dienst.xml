@@ -8,7 +8,7 @@
 <service>
   <id>RaumfeldRemote</id>
   <name>Raumfeld Remote</name>
-  <description>Zentrale Web-Oberfläche zur Steuerung der Raumfeld-Lautsprecher (Port 8080).</description>
+  <description>Zentrale Web-Oberfläche zur Steuerung der Raumfeld-Lautsprecher (Port: siehe Einstellungen, Standard 8766).</description>
   <executable>%BASE%\RaumfeldRemoteDienst.exe</executable>
   <!-- Alle Daten (Einstellungen, Passwort-Hash, cookies.txt, Protokoll) zentral ablegen -->
   <env name="RAUMFELD_REMOTE_DATEN" value="%ProgramData%\RaumfeldRemote"/>

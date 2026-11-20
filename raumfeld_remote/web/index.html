@@ -30,7 +30,7 @@
   .zeile { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .zeile > .wachsen { flex:1; min-width:180px; }
   input, select, textarea, button { font:inherit; color:inherit; }
-  input[type=text], input[type=password], input[type=time], select, textarea {
+  input[type=text], input[type=password], input[type=time], input[type=number], select, textarea {
     padding:8px 10px; border:1px solid var(--rand); border-radius:8px; background:transparent; }
   select option { background:var(--karte); }
   textarea { width:100%; min-height:70px; resize:vertical; }
@@ -169,8 +169,19 @@
       <label class="leise" for="bitrate">MP3-Bitrate</label>
       <select id="bitrate"><option>128k</option><option>192k</option><option>256k</option><option>320k</option></select>
 
+      <h2 class="abstand">Ports</h2>
+      <p class="leise">Gelten nach einem Neustart des Dienstes. Die Firewall-Freigabe des Installers gilt für
+        das Programm selbst, also auch für geänderte Ports. Erlaubt: 1024 bis 49151.</p>
+      <div class="zeile">
+        <label class="leise" for="webPort">Web-Oberfläche</label>
+        <input type="number" id="webPort" min="1024" max="49151">
+        <label class="leise" for="streamPort">Stream an die Lautsprecher</label>
+        <input type="number" id="streamPort" min="1024" max="49151">
+      </div>
+
       <div class="zeile abstand">
         <button id="btnSpeichern" class="haupt">Einstellungen speichern</button>
+        <button id="btnNeustart" hidden>Dienst jetzt neu starten</button>
       </div>
       <div class="meldung" id="einstMeldung"></div>
 
@@ -472,6 +483,8 @@ async function einstellungenHolen() {
   $("netze").value = e.such_netze.join("\n");
   $("geraete").value = e.manuelle_boxen.join("\n");
   $("bitrate").value = e.bitrate;
+  $("webPort").value = e.web_port;
+  $("streamPort").value = e.stream_port;
   $("regeln").innerHTML = "";
   e.ruhezeiten.forEach(regelZeile);
   $("spClientId").value = e.spotify_client_id || "";
@@ -481,11 +494,24 @@ async function einstellungenHolen() {
 const zeilen = (id) => $(id).value.split("\n").map((z) => z.trim()).filter(Boolean);
 $("btnSpeichern").onclick = async () => {
   try {
-    const { meldung } = await api("/api/einstellungen", {
+    const { meldung, neustart } = await api("/api/einstellungen", {
       such_netze: zeilen("netze"), manuelle_boxen: zeilen("geraete"),
-      bitrate: $("bitrate").value, ruhezeiten: regelnLesen() });
+      bitrate: $("bitrate").value, ruhezeiten: regelnLesen(),
+      web_port: $("webPort").value, stream_port: $("streamPort").value });
     melden("einstMeldung", meldung);
+    // Ports geaendert -> Neustart-Knopf anbieten
+    if (neustart) $("btnNeustart").hidden = false;
     zustandHolen();
+  } catch (e) { melden("einstMeldung", e.message, true); }
+};
+$("btnNeustart").onclick = async () => {
+  if (!confirm("Dienst neu starten? Laufende Musik wird gestoppt.")) return;
+  try {
+    const { meldung, web_port } = await api("/api/dienst/neustart", {});
+    melden("einstMeldung", meldung);
+    // Nach dem Neustart unter dem (evtl. neuen) Port weitermachen
+    const ziel = `${location.protocol}//${location.hostname}:${web_port}/`;
+    setTimeout(() => { location.href = ziel; }, 15000);
   } catch (e) { melden("einstMeldung", e.message, true); }
 };
 

@@ -247,8 +247,19 @@ def app_erzeugen(zentrale: Zentrale) -> Flask:
     @app.post("/api/einstellungen")
     @api
     def api_einstellungen():
-        zentrale.einstellungen_speichern(daten())
+        if zentrale.einstellungen_speichern(daten()):
+            # Ports wirken erst nach Neustart -> Oberflaeche bietet den Neustart an
+            return jsonify(meldung="Gespeichert. Die neuen Ports gelten erst nach einem Neustart des Dienstes.",
+                           neustart=True)
         return jsonify(meldung="Gespeichert – gilt für alle.")
+
+    @app.post("/api/dienst/neustart")
+    @api
+    def api_dienst_neustart():
+        """Dienst neu starten (z. B. nach Portaenderung). WinSW startet ihn nach ca. 10 s wieder."""
+        zentrale.neu_starten()
+        return jsonify(meldung="Dienst startet neu – in etwa 15 Sekunden wieder erreichbar.",
+                       web_port=zentrale.einst["web_port"])
 
     @app.post("/api/cookies")
     @api

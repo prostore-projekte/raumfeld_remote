@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.9.2 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.10.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -102,6 +102,11 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - **Netz des Nutzers:** PC in `192.168.10.0/24`, Lautsprecher in `192.168.20.0/24`, verbunden per VPN; Ping 10 → 20 geht.
   Multicast-SSDP kommt nicht über das VPN → Lösung 0.3.0: Unicast-M-SEARCH. Ob Raumfeld-Boxen auf Unicast antworten, ist **unbekannt**.
   Ob die Boxen den Stream-Server auf dem PC (Port 8765, über VPN) erreichen, ist **ungetestet**.
+- **Dienst findet Boxen im anderen Netz nicht** (Sascha, 0.9.x, Netz eingetragen). Vermutete Ursache (**Annahme**, nicht
+  verifiziert): Der Dienst hatte nur TCP-Port-Regeln; die UDP-Antworten auf die SSDP-Anfrage verwirft die Firewall.
+  Das Desktop-Programm lief, weil Windows beim Start „Zugriff zulassen“ anbot (Programmregel inkl. UDP).
+  0.10.0: Programmregel im Installer + Suchdiagnose im Protokoll. Weitere mögliche Ursache: Netzprofil „Öffentlich“
+  (Regel gilt nur für Domäne/Privat).
 - Ob der Port in der Raumfeld-Geräte-URL (z. B. `:60092`) nach einem Neustart der Box gleich bleibt, ist **unbekannt**.
 - Ob Raumfeld-Boxen in der Spotify-Geräteliste (Connect) erscheinen, ist **unbekannt** (hängt von Modell/Firmware ab). Die automatische Zuordnung Box ↔ Connect-Gerät per Namensvergleich ist eine **Annahme**.
 - Spotify-Web-API-Wiedergabesteuerung braucht nach Kenntnisstand **Premium**.
@@ -116,7 +121,7 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - Repo: **`prostore-projekte/raumfeld_remote`** (`berion1982/raumfeld_remote` ist hinfällig).
 - Arbeitsbranch `claude/ecstatic-mayer-gfo8yn`; jeder Schritt → PR nach `main`, Sascha merged selbst.
   Sascha merged `main` gelegentlich per PR zurück in den Branch → vor dem Push `git fetch` + `git merge` (kein Force-Push).
-- Stand 20.11.2026: PRs #1–#13 gemergt, `main` = **0.9.1**, Release `v0.9.0` vorhanden; 0.9.2 (nur Doku) im nächsten PR.
+- Stand 20.11.2026: PRs #1–#14 gemergt, `main` = **0.9.2**; 0.10.0 (Ports, Firewall-Programmregel, Suchdiagnose) im nächsten PR.
 - Workflow `.github/workflows/windows-build.yml`, zwei Jobs:
   - `build`: Desktop-EXE + Starttest von `start.bat` (Artifact „RaumfeldRemote-windows“)
   - `dienst-installer`: Dienst-EXE, Inno-Setup-Installer, **Installation/Prüfung/Deinstallation auf dem Runner**,
@@ -136,14 +141,19 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   Ablauf mit simuliertem UPnP-Renderer, Oberfläche per Playwright. Installer/Dienst nur im CI auf Windows.
 - **Nicht** getestet: echter Windows Server 2025, echte Boxen über den Dienst, echtes Spotify-Konto.
 - Entscheidungen: ein Passwort für alle (keine Rollen); Ersteinrichtung nur von localhost; YouTube-Anmeldung im Dienst nur
-  per `cookies.txt`-Upload; Ports fest 8080/8765 (Firewall-Regeln im Installer).
+  per `cookies.txt`-Upload. Ab 0.10.0: Ports einstellbar (Standard Web 8766, Stream 8765), Firewall als
+  Programmregel „Raumfeld Remote Dienst“; Neustart per `os._exit(1)` → WinSW `onfailure restart` (im CI getestet).
 - Desktop-Programm (`gui.py`, `start.bat`, `installieren.bat`) bleibt für Einzelplätze erhalten.
 
 ## 8. Offene Punkte / nächste Schritte
-1. **Release v0.9.0 prüfen** (Repo-Seite → Releases) – erstes automatisch angelegtes Release.
+1. **0.10.0 auf dem Server installieren** und prüfen: Boxen im Netz 192.168.20.0/24 gefunden? Sonst Protokoll-Zeilen
+   „Suche in weiteren Netzen …“ ansehen.
+   **Wartet auf Sascha:** Tidal (Weg klären: offizielle API + YouTube-Suche wie Spotify oder inoffizieller Stream;
+   Firefox-Add-on bzw. Tidal-Webseite liefern keinen Ton an die Boxen, DRM) und „Konten“-Bereich (Benutzername/Passwort
+   speichern geht bei YouTube/Spotify/Tidal nicht direkt, nur einmalige Anmeldung mit dauerhaft gespeichertem Zugang).
 2. **Installer auf dem Terminalserver installieren** (Release-Datei, nicht den Quellcode/`installieren.bat`!),
-   am Server `http://localhost:8080` → Passwort setzen; Netz `192.168.20.0/24`, Ruhezeiten einstellen; von einem Büro-PC
-   `http://<server>:8080` öffnen und abspielen. Bei Problemen: Protokoll aus der Web-Oberfläche.
+   am Server `http://localhost:8766` → Passwort setzen; Netz `192.168.20.0/24`, Ruhezeiten einstellen; von einem Büro-PC
+   `http://<server>:8766` öffnen und abspielen. Bei Problemen: Protokoll aus der Web-Oberfläche.
 3. Spotify: App im Developer Dashboard (Redirect `http://127.0.0.1:8888/callback`), Client-ID + Anmeldung in der
    Web-Oberfläche, beide Wiedergabewege testen.
 4. Danach entscheiden, ob Desktop-Variante/`start.bat` entfallen.
@@ -175,3 +185,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.9.0 | Spotify in der Web-Oberfläche; Releases mit Setup-EXE |
 | 20.11.2026 | 0.9.1 | HANDOVER aufgeräumt (GitHub-Stand, Architektur, offene Punkte), README nach Varianten gegliedert |
 | 20.11.2026 | 0.9.2 | README: Link zur Setup-EXE, Abschnitt „Setup-EXE selbst bauen“ |
+| 20.11.2026 | 0.10.0 | Ports einstellbar (Standard 8766), Firewall-Programmregel, Suchdiagnose, Neusuche nach Netzänderung |

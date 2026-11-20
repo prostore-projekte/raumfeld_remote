@@ -179,6 +179,7 @@ def ssdp_suche(timeout: float = 3.0, zusatz_netze: list[str] | None = None) -> l
     # Unicast-Suche in weiteren Netzen: eigener, nicht gebundener Socket,
     # damit Windows die Route (z. B. ueber den VPN-Adapter) selbst waehlt.
     ziele = netz_adressen(zusatz_netze or [])
+    sendefehler: list[str] = []   # Diagnose: z. B. "Netz nicht erreichbar" (keine Route)
     if ziele:
         uni = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         uni.settimeout(0.3)
@@ -190,17 +191,21 @@ def ssdp_suche(timeout: float = 3.0, zusatz_netze: list[str] | None = None) -> l
                 einzel = anfrage.replace(alt_host, f"HOST: {ip}:{SSDP_ADDR[1]}".encode("ascii"))
                 try:
                     uni.sendto(einzel, (ip, SSDP_ADDR[1]))
-                except OSError:
-                    pass  # z. B. Netz nicht erreichbar -> naechste Adresse
+                except OSError as exc:
+                    # z. B. Netz nicht erreichbar -> merken und naechste Adresse
+                    if len(sendefehler) < 3:
+                        sendefehler.append(f"{ip}: {exc}")
 
     locations: list[str] = []
+    absender: set[str] = set()   # Diagnose: IP-Adressen, von denen Antworten kamen
     ende = time.monotonic() + timeout
     while time.monotonic() < ende:
         for s in sockets:
             try:
-                daten, _addr = s.recvfrom(65507)
+                daten, addr = s.recvfrom(65507)
             except (socket.timeout, OSError):
                 continue
+            absender.add(addr[0])
             for zeile in daten.decode("utf-8", errors="replace").split("\r\n"):
                 schluessel, trenner, wert = zeile.partition(":")
                 if trenner and schluessel.strip().lower() == "location":
@@ -209,6 +214,19 @@ def ssdp_suche(timeout: float = 3.0, zusatz_netze: list[str] | None = None) -> l
                         locations.append(url)
     for s in sockets:
         s.close()
+
+    # Diagnose ins Protokoll: hilft bei "Geraete im anderen Netz werden nicht gefunden"
+    if ziele:
+        aus_zusatz = sorted(ip for ip in absender if ip in set(ziele))
+        protokoll(f"Suche in weiteren Netzen ({', '.join(zusatz_netze or [])}): "
+                  f"{len(ziele)} Adressen angefragt, Antworten von "
+                  f"{', '.join(aus_zusatz) if aus_zusatz else 'keiner Adresse'}.")
+        for fehler in sendefehler:
+            protokoll(f"✗ Anfrage nicht gesendet ({fehler}) – fehlt eine Route/VPN zum Netz?")
+        if not aus_zusatz and not sendefehler:
+            protokoll("Hinweis: Aus den weiteren Netzen kam keine Antwort. Mögliche Ursachen: "
+                      "Firewall blockiert eingehende UDP-Antworten, Router/VPN filtert UDP-Port 1900, "
+                      "oder die Geräte antworten nicht auf Unicast. Abhilfe: Gerät per URL fest eintragen.")
     return locations
 
 

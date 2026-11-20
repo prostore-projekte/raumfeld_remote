@@ -11,7 +11,8 @@ Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spie
 ## Büro-Installation: zentraler Dienst mit Web-Oberfläche (empfohlen)
 Ein Dienst auf dem Server (z. B. Terminalserver, Windows Server 2025) übernimmt Suche, Wiedergabe, Warteschlange,
 Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im Browser:
-**`http://<servername>:8080`** – nichts pro Benutzer installieren, geht auch vom Handy.
+**`http://<servername>:8766`** – nichts pro Benutzer installieren, geht auch vom Handy.
+(8766 ist der Standard-Port; änderbar im Installer und unter **⚙ Einstellungen → Ports**.)
 
 **Installation (einmalig, als Administrator):**
 1. `RaumfeldRemote-Setup-x.y.z.exe` herunterladen – direkt hier:
@@ -23,14 +24,24 @@ Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im
 2. Installer ausführen. Er richtet ein:
    - Programm in `C:\Program Files\RaumfeldRemote` inkl. `yt-dlp`, `ffmpeg`, `deno`
    - Windows-Dienst **„Raumfeld Remote“** (startet automatisch mit Windows, Neustart bei Absturz)
-   - Firewall-Regeln: TCP **8080** (Web-Oberfläche) und TCP **8765** (Stream an die Lautsprecher), Profile Domäne/Privat
+   - Firewall-Regel **„Raumfeld Remote Dienst“** für das Programm (Profile Domäne/Privat) – gilt für Web-Oberfläche,
+     Stream und die Antworten der Lautsprecher bei der Suche, auch nach einer Portänderung
+   - Eine Seite im Assistenten fragt den **Port der Web-Oberfläche** ab (Standard 8766)
    - Datenordner `C:\ProgramData\RaumfeldRemote` (nur SYSTEM und Administratoren haben Zugriff)
    - Startmenü-Eintrag „Raumfeld Remote“ für alle Benutzer
-3. Am Ende öffnet sich `http://localhost:8080` – dort das **Zugangspasswort** festlegen. Das geht aus Sicherheitsgründen
+3. Am Ende öffnet sich `http://localhost:8766` (bzw. der gewählte Port) – dort das **Zugangspasswort** festlegen. Das geht aus Sicherheitsgründen
    nur direkt am Server.
 4. In der Web-Oberfläche unter **⚙ Einstellungen**: weitere Netze (z. B. `192.168.20.0/24`), Ruhezeiten, ggf. YouTube-Anmeldung.
 
 Lautlos installieren (z. B. Softwareverteilung): `RaumfeldRemote-Setup-x.y.z.exe /VERYSILENT /SUPPRESSMSGBOXES`
+(anderer Port: zusätzlich `/WEBPORT=9000`)
+
+**Port ändern:** **⚙ Einstellungen → Ports** → speichern → **Dienst jetzt neu starten**. Nach ca. 15 Sekunden springt
+die Seite auf den neuen Port. Die Startmenü-Verknüpfung passt sich an.
+
+**Lautsprecher im anderen Netz werden nicht gefunden?** Unter **⚙ Einstellungen → Netzwerk** das Netz eintragen
+(z. B. `192.168.20.0/24`) und speichern – die Suche startet dann sofort. Im Protokoll steht danach, wie viele Adressen
+angefragt wurden und welche geantwortet haben. Kommt keine Antwort: das Gerät unter „Gerät per URL hinzufügen“ fest eintragen.
 
 ### Setup-EXE selbst bauen
 Normalerweise nicht nötig. Die Setup-EXE wird von GitHub Actions (Workflow **Windows-Build**, Job `dienst-installer`,
@@ -51,8 +62,8 @@ Lokal unter Windows bauen (dieselben Schritte wie im Workflow; lokal so noch nic
    - [WinSW-x64.exe v2.12.0](https://github.com/winsw/winsw/releases/tag/v2.12.0) als `paket_dienst\RaumfeldRemote-Dienst.exe` speichern
    - In `paket_dienst\tools\`: `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe`
 5. Installer erzeugen (Version wie in `raumfeld_remote/__init__.py`):
-   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.9.2 installer\raumfeld_remote.iss`
-6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.9.2.exe`
+   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.10.0 installer\raumfeld_remote.iss`
+6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.10.0.exe`
 
 **Funktionen der Web-Oberfläche:**
 - Anmeldung mit einem gemeinsamen Passwort (30 Tage angemeldet bleiben; Sperre nach 5 Fehlversuchen für 10 Minuten)
@@ -68,7 +79,7 @@ Lokal unter Windows bauen (dieselben Schritte wie im Workflow; lokal so noch nic
 Beim Deinstallieren bleibt dieser Ordner erhalten.
 
 **Passwort vergessen?** Als Administrator in `dienst.json` den Wert `passwort_hash` leeren (`""`), Dienst neu starten
-(`services.msc` → „Raumfeld Remote“) und am Server `http://localhost:8080` öffnen.
+(`services.msc` → „Raumfeld Remote“) und am Server `http://localhost:8766` (bzw. deinen Port) öffnen.
 
 **Spotify in der Web-Oberfläche** (ein gemeinsames Konto für alle):
 1. Auf [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) eine App anlegen, als Redirect-URI
