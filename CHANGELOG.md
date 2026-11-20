@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.9.2 – 20.11.2026
+### Geändert
+- README: direkter Link zur Setup-EXE (Releases) und neuer Abschnitt „Setup-EXE selbst bauen“
+  (GitHub Actions, Artifact `RaumfeldRemote-Setup`, lokale Schritte mit PyInstaller + Inno Setup)
+
 ## 0.9.1 – 20.11.2026
 ### Geändert
 - README nach Büro- und Einzelplatz-Variante gegliedert, Projektstand aktualisiert
