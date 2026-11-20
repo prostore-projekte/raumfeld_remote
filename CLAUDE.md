@@ -16,6 +16,7 @@ per UPnP; Audio über `yt-dlp → ffmpeg → MP3`-Stream. Details/Historie: `HAN
 | `raumfeld_remote/stream_server.py` | HTTP-Server yt-dlp → ffmpeg → MP3 |
 | `raumfeld_remote/player.py` | `Wiedergabe`: Warteschlange, Transport |
 | `raumfeld_remote/spotify.py` | OAuth PKCE, Web-API |
+| `raumfeld_remote/tidal.py` | Tidal über `tidalapi` (inoffiziell): Geräte-Code-Login, Playlists/Suche, Stream-Adresse |
 | `raumfeld_remote/einstellungen.py` | JSON in `%APPDATA%/RaumfeldRemote/` |
 | `raumfeld_remote/gui.py` | Oberfläche; GUI-Updates nur über Queue (`_ui` / `_ui_pumpe`) |
 | `raumfeld_remote/protokoll.py` | `protokoll()` → `stream.log` + Live-Protokoll in der GUI (`abonnieren`) |

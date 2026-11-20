@@ -30,10 +30,11 @@
   .zeile { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .zeile > .wachsen { flex:1; min-width:180px; }
   input, select, textarea, button { font:inherit; color:inherit; }
-  input[type=text], input[type=password], input[type=time], select, textarea {
+  input[type=text], input[type=password], input[type=time], input[type=number], select, textarea {
     padding:8px 10px; border:1px solid var(--rand); border-radius:8px; background:transparent; }
   select option { background:var(--karte); }
-  textarea { width:100%; min-height:70px; resize:vertical; }
+  textarea, #tiEingabe { width:100%; min-height:70px; resize:vertical; }
+  #tiEingabe { min-height:0; display:block; }
   button { padding:8px 14px; border:1px solid var(--rand); border-radius:8px; background:transparent; cursor:pointer; }
   button.haupt { background:var(--akzent); border-color:var(--akzent); color:#fff; }
   button:disabled { opacity:.5; cursor:default; }
@@ -141,11 +142,95 @@
     </div>
   </section>
 
+  <!-- ===== Tidal ===== -->
+  <section class="karte" id="tidalKarte">
+    <h2>Tidal</h2>
+    <div class="leise" id="tidalHinweis">Wird geladen …</div>
+    <div id="tidalBedienung" hidden>
+      <div class="zeile">
+        <select id="tiPlaylist" class="wachsen" aria-label="Tidal-Playlist"></select>
+        <button id="btnTiNeu" title="Playlists neu laden">↻</button>
+      </div>
+      <input type="text" id="tiEingabe" class="abstand"
+             placeholder="… oder Interpret, Titel oder Tidal-Link (Playlist, Album, Titel, Interpret)">
+      <div class="zeile abstand">
+        <label><input type="checkbox" id="tiZufall"> Zufällige Reihenfolge</label>
+        <span class="wachsen"></span>
+        <button id="btnTiAbspielen" class="haupt">▶ Abspielen</button>
+      </div>
+      <div class="leise">Spielt auf dem gewählten Raumfeld-Lautsprecher, Ton direkt von Tidal.</div>
+      <div class="meldung" id="tiMeldung"></div>
+    </div>
+  </section>
+
   <!-- ===== Warteschlange ===== -->
   <section class="karte">
     <h2>Warteschlange</h2>
     <ol class="schlange" id="schlange"></ol>
     <div class="leise" id="schlangeLeer">Leer.</div>
+  </section>
+
+  <!-- ===== Konten (gelten fuer alle) ===== -->
+  <section class="karte">
+    <details id="kontenBereich">
+      <summary>🔑 Konten (gelten für alle)</summary>
+      <p class="leise">Einmal anmelden – der Zugang wird auf dem Server gespeichert und bleibt auch nach
+        Neustart oder Update erhalten. Passwörter selbst speichert das Programm nicht: Die Dienste lassen
+        die Anmeldung nur über ihre eigene Seite zu.</p>
+      <h2>YouTube</h2>
+      <p class="leise">Optional, z. B. für eigene Playlists oder „Gefällt mir“. Eine <code>cookies.txt</code>
+        (Netscape-Format, z. B. mit der Browser-Erweiterung „Get cookies.txt LOCALLY“ exportiert) hochladen.
+        Status: <span id="cookieStatus">–</span></p>
+      <div class="zeile">
+        <input type="file" id="cookieDatei" accept=".txt">
+        <button id="btnCookies">Hochladen</button>
+        <button id="btnCookiesWeg">Entfernen</button>
+      </div>
+      <div class="meldung" id="cookieMeldung"></div>
+
+      <h2 class="abstand">Spotify</h2>
+      <p class="leise">Einmalig: auf <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>
+        eine App anlegen, als Redirect-URI <code>http://127.0.0.1:8888/callback</code> eintragen, Client-ID hier einfügen.
+        Status: <span id="spStatus">–</span></p>
+      <div class="zeile">
+        <input type="text" id="spClientId" class="wachsen" placeholder="Spotify-Client-ID">
+        <button id="btnSpClientId">Speichern</button>
+      </div>
+      <div class="zeile abstand">
+        <button id="btnSpAnmelden">Bei Spotify anmelden</button>
+        <button id="btnSpAbmelden">Spotify trennen</button>
+      </div>
+      <div id="spCodeBereich" class="abstand" hidden>
+        <p class="leise">Nach der Anmeldung zeigt der Browser „Seite nicht erreichbar“ (127.0.0.1:8888) – das ist richtig.
+          Die <b>komplette Adresse</b> aus der Adresszeile kopieren und hier einfügen:</p>
+        <div class="zeile">
+          <input type="text" id="spAdresse" class="wachsen" placeholder="http://127.0.0.1:8888/callback?code=…">
+          <button id="btnSpCode" class="haupt">Anmeldung abschließen</button>
+        </div>
+      </div>
+      <div class="meldung" id="spKontoMeldung"></div>
+
+
+      <h2 class="abstand">Tidal</h2>
+      <p class="leise">Anmeldung per Code: „Bei Tidal anmelden“ klicken, den Link öffnen (geht auch am Handy),
+        dort bei Tidal anmelden und den Code bestätigen. Der Zugang bleibt danach gespeichert.
+        Status: <span id="tiStatus">–</span></p>
+      <div class="zeile">
+        <button id="btnTiAnmelden">Bei Tidal anmelden</button>
+        <button id="btnTiAbmelden">Tidal trennen</button>
+        <label class="leise" for="tiQualitaet">Qualität der Quelle</label>
+        <select id="tiQualitaet">
+          <option value="LOSSLESS">Verlustfrei (FLAC)</option>
+          <option value="HIGH">Hoch (AAC 320 kbit/s)</option>
+        </select>
+      </div>
+      <div id="tiCodeBereich" class="abstand" hidden>
+        <p>1. Diesen Link öffnen: <a id="tiLink" href="#" target="_blank" rel="noopener"></a><br>
+          2. Code prüfen: <b id="tiCode"></b> – bei Tidal anmelden und bestätigen.<br>
+          <span class="leise">Diese Seite merkt die Anmeldung automatisch.</span></p>
+      </div>
+      <div class="meldung" id="tiKontoMeldung"></div>
+    </details>
   </section>
 
   <!-- ===== Einstellungen (gelten fuer alle) ===== -->
@@ -169,43 +254,21 @@
       <label class="leise" for="bitrate">MP3-Bitrate</label>
       <select id="bitrate"><option>128k</option><option>192k</option><option>256k</option><option>320k</option></select>
 
+      <h2 class="abstand">Ports</h2>
+      <p class="leise">Gelten nach einem Neustart des Dienstes. Die Firewall-Freigabe des Installers gilt für
+        das Programm selbst, also auch für geänderte Ports. Erlaubt: 1024 bis 49151.</p>
+      <div class="zeile">
+        <label class="leise" for="webPort">Web-Oberfläche</label>
+        <input type="number" id="webPort" min="1024" max="49151">
+        <label class="leise" for="streamPort">Stream an die Lautsprecher</label>
+        <input type="number" id="streamPort" min="1024" max="49151">
+      </div>
+
       <div class="zeile abstand">
         <button id="btnSpeichern" class="haupt">Einstellungen speichern</button>
+        <button id="btnNeustart" hidden>Dienst jetzt neu starten</button>
       </div>
       <div class="meldung" id="einstMeldung"></div>
-
-      <h2 class="abstand">YouTube-Anmeldung</h2>
-      <p class="leise">Optional, z. B. für eigene Playlists oder „Gefällt mir“. Eine <code>cookies.txt</code>
-        (Netscape-Format, z. B. mit der Browser-Erweiterung „Get cookies.txt LOCALLY“ exportiert) hochladen.
-        Status: <span id="cookieStatus">–</span></p>
-      <div class="zeile">
-        <input type="file" id="cookieDatei" accept=".txt">
-        <button id="btnCookies">Hochladen</button>
-        <button id="btnCookiesWeg">Entfernen</button>
-      </div>
-      <div class="meldung" id="cookieMeldung"></div>
-
-      <h2 class="abstand">Spotify-Konto (gilt für alle)</h2>
-      <p class="leise">Einmalig: auf <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>
-        eine App anlegen, als Redirect-URI <code>http://127.0.0.1:8888/callback</code> eintragen, Client-ID hier einfügen.
-        Status: <span id="spStatus">–</span></p>
-      <div class="zeile">
-        <input type="text" id="spClientId" class="wachsen" placeholder="Spotify-Client-ID">
-        <button id="btnSpClientId">Speichern</button>
-      </div>
-      <div class="zeile abstand">
-        <button id="btnSpAnmelden">Bei Spotify anmelden</button>
-        <button id="btnSpAbmelden">Spotify trennen</button>
-      </div>
-      <div id="spCodeBereich" class="abstand" hidden>
-        <p class="leise">Nach der Anmeldung zeigt der Browser „Seite nicht erreichbar“ (127.0.0.1:8888) – das ist richtig.
-          Die <b>komplette Adresse</b> aus der Adresszeile kopieren und hier einfügen:</p>
-        <div class="zeile">
-          <input type="text" id="spAdresse" class="wachsen" placeholder="http://127.0.0.1:8888/callback?code=…">
-          <button id="btnSpCode" class="haupt">Anmeldung abschließen</button>
-        </div>
-      </div>
-      <div class="meldung" id="spKontoMeldung"></div>
 
       <h2 class="abstand">Gerät per URL hinzufügen</h2>
       <div class="zeile">
@@ -472,6 +535,8 @@ async function einstellungenHolen() {
   $("netze").value = e.such_netze.join("\n");
   $("geraete").value = e.manuelle_boxen.join("\n");
   $("bitrate").value = e.bitrate;
+  $("webPort").value = e.web_port;
+  $("streamPort").value = e.stream_port;
   $("regeln").innerHTML = "";
   e.ruhezeiten.forEach(regelZeile);
   $("spClientId").value = e.spotify_client_id || "";
@@ -481,11 +546,24 @@ async function einstellungenHolen() {
 const zeilen = (id) => $(id).value.split("\n").map((z) => z.trim()).filter(Boolean);
 $("btnSpeichern").onclick = async () => {
   try {
-    const { meldung } = await api("/api/einstellungen", {
+    const { meldung, neustart } = await api("/api/einstellungen", {
       such_netze: zeilen("netze"), manuelle_boxen: zeilen("geraete"),
-      bitrate: $("bitrate").value, ruhezeiten: regelnLesen() });
+      bitrate: $("bitrate").value, ruhezeiten: regelnLesen(),
+      web_port: $("webPort").value, stream_port: $("streamPort").value });
     melden("einstMeldung", meldung);
+    // Ports geaendert -> Neustart-Knopf anbieten
+    if (neustart) $("btnNeustart").hidden = false;
     zustandHolen();
+  } catch (e) { melden("einstMeldung", e.message, true); }
+};
+$("btnNeustart").onclick = async () => {
+  if (!confirm("Dienst neu starten? Laufende Musik wird gestoppt.")) return;
+  try {
+    const { meldung, web_port } = await api("/api/dienst/neustart", {});
+    melden("einstMeldung", meldung);
+    // Nach dem Neustart unter dem (evtl. neuen) Port weitermachen
+    const ziel = `${location.protocol}//${location.hostname}:${web_port}/`;
+    setTimeout(() => { location.href = ziel; }, 15000);
   } catch (e) { melden("einstMeldung", e.message, true); }
 };
 
@@ -527,7 +605,7 @@ async function spotifyStatusHolen() {
     const bereit = spStatus.client_id && spStatus.angemeldet;
     $("spotifyBedienung").hidden = !bereit;
     $("spotifyHinweis").hidden = bereit;
-    $("spotifyHinweis").textContent = "Spotify ist noch nicht verbunden – unter ⚙ Einstellungen → „Spotify-Konto“ einrichten.";
+    $("spotifyHinweis").textContent = "Spotify ist noch nicht verbunden – unter 🔑 Konten → „Spotify“ einrichten.";
     if (bereit && !$("spPlaylist").options.length) { spPlaylistsHolen(); spGeraeteHolen(); }
   } catch (e) { $("spotifyHinweis").textContent = e.message; }
 }
@@ -615,6 +693,82 @@ $("btnSpAbmelden").onclick = async () => {
 };
 
 // ======================================================================
+// Tidal
+// ======================================================================
+let tiWarten = null;   // Timer, solange eine Anmeldung per Code laeuft
+
+async function tidalStatusHolen() {
+  try {
+    const s = await api("/api/tidal");
+    $("tiStatus").textContent = !s.verfuegbar ? "in dieser Installation nicht verfügbar"
+      : s.angemeldet ? "verbunden" + (s.benutzer ? ` (${s.benutzer})` : "") : "nicht angemeldet";
+    $("tiQualitaet").value = s.qualitaet;
+    const bereit = s.verfuegbar && s.angemeldet;
+    $("tidalBedienung").hidden = !bereit;
+    $("tidalHinweis").hidden = bereit;
+    $("tidalHinweis").textContent = s.verfuegbar
+      ? "Tidal ist noch nicht verbunden – unter 🔑 Konten → „Tidal“ anmelden."
+      : "Tidal ist in dieser Installation nicht verfügbar.";
+    // Laufende Anmeldung: Code und Link anzeigen, bis sie fertig oder abgelaufen ist
+    const a = s.anmeldung;
+    $("tiCodeBereich").hidden = !(a && !a.fehler);
+    if (a && !a.fehler) {
+      $("tiLink").href = a.url; $("tiLink").textContent = a.url; $("tiCode").textContent = a.code;
+    }
+    if (a && a.fehler) melden("tiKontoMeldung", a.fehler, true);
+    if (s.angemeldet || !a || a.fehler) { clearInterval(tiWarten); tiWarten = null; }
+    if (s.angemeldet && $("tiKontoMeldung").textContent.startsWith("Warte")) melden("tiKontoMeldung", "Tidal verbunden – gilt für alle.");
+    if (bereit && !$("tiPlaylist").options.length) tiPlaylistsHolen();
+  } catch (e) { $("tidalHinweis").textContent = e.message; }
+}
+async function tiPlaylistsHolen() {
+  try {
+    const { playlists } = await api("/api/tidal/playlists");
+    fuellen($("tiPlaylist"), [{ wert: "", text: "– Playlist wählen –" },
+      ...playlists.map((p) => ({ wert: p.id, text: p.name + (p.anzahl != null ? ` (${p.anzahl})` : "") }))],
+      "Keine Playlists gefunden");
+  } catch (e) { melden("tiMeldung", e.message, true); }
+}
+$("btnTiNeu").onclick = tiPlaylistsHolen;
+$("btnTiAbspielen").onclick = async () => {
+  // Freitext (Suche/Link) hat Vorrang vor der Playlist-Auswahl
+  const eingabe = $("tiEingabe").value.trim() || $("tiPlaylist").value;
+  if (!eingabe) return melden("tiMeldung", "Bitte eine Playlist wählen oder einen Suchbegriff/Link eingeben.", true);
+  melden("tiMeldung", "Titel werden von Tidal gelesen …");
+  $("btnTiAbspielen").disabled = true;
+  try {
+    const { meldung } = await api("/api/tidal/abspielen", { box: boxId(), eingabe, zufall: $("tiZufall").checked });
+    melden("tiMeldung", meldung);
+    zustandHolen();
+  } catch (e) { melden("tiMeldung", e.message, true); }
+  finally { $("btnTiAbspielen").disabled = false; }
+};
+$("btnTiAnmelden").onclick = async () => {
+  try {
+    const a = await api("/api/tidal/anmelden", {});
+    window.open(a.url, "_blank", "noopener");
+    melden("tiKontoMeldung", "Warte auf die Bestätigung bei Tidal …");
+    clearInterval(tiWarten);
+    tiWarten = setInterval(tidalStatusHolen, 3000);
+    tidalStatusHolen();
+  } catch (e) { melden("tiKontoMeldung", e.message, true); }
+};
+$("btnTiAbmelden").onclick = async () => {
+  if (!confirm("Tidal-Konto für alle trennen?")) return;
+  try {
+    melden("tiKontoMeldung", (await api("/api/tidal/abmelden", {})).meldung);
+    $("tiPlaylist").innerHTML = "";
+    tidalStatusHolen();
+  } catch (e) { melden("tiKontoMeldung", e.message, true); }
+};
+$("tiQualitaet").onchange = async () => {
+  try {
+    await api("/api/einstellungen", { tidal_qualitaet: $("tiQualitaet").value });
+    melden("tiKontoMeldung", "Qualität gespeichert – gilt ab dem nächsten Titel.");
+  } catch (e) { melden("tiKontoMeldung", e.message, true); }
+};
+
+// ======================================================================
 // Protokoll (nur abfragen, wenn aufgeklappt)
 // ======================================================================
 let protokollNummer = 0;
@@ -642,6 +796,7 @@ $("protokollBereich").ontoggle = () => {
 zustandHolen();
 einstellungenHolen().catch((e) => melden("einstMeldung", e.message, true));
 spotifyStatusHolen();
+tidalStatusHolen();
 protokollHolen();
 setInterval(zustandHolen, 2000);
 setInterval(protokollHolen, 3000);

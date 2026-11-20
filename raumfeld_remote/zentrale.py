@@ -17,11 +17,14 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import secrets
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .einstellungen import konfig_ordner
 from .player import Wiedergabe
@@ -29,6 +32,9 @@ from .protokoll import protokoll
 from .quellen import KEIN_FENSTER, Titel, finde_programm, titel_liste_aufbauen
 from .spotify import Spotify, SpotifyFehler
 from .stream_server import StreamServer
+from .tidal import PRAEFIX as TIDAL_PRAEFIX
+from .tidal import QUALITAETEN as TIDAL_QUALITAETEN
+from .tidal import Tidal
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
                    renderer_laden, renderer_suchen, setze_lautstaerke)
 
@@ -40,7 +46,9 @@ from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
 STANDARD: dict = {
     "passwort_hash": "",        # PBKDF2-Hash des Zugangspassworts (leer = noch nicht eingerichtet)
     "geheimschluessel": "",     # Schluessel fuer Sitzungs-Cookies (wird beim ersten Start erzeugt)
-    "web_port": 8080,           # Port der Web-Oberflaeche
+    # Port der Web-Oberflaeche. Bewusst nicht 8080 (dort laufen oft schon andere Dienste).
+    # Aenderbar in der Web-Oberflaeche und im Installer; wirkt nach Neustart des Dienstes.
+    "web_port": 8766,
     "stream_port": 8765,        # Port, von dem die Lautsprecher den Stream holen
     "bitrate": "320k",          # MP3-Bitrate
     "such_netze": [],           # weitere Netze fuer die Suche, z. B. ["192.168.20.0/24"]
@@ -50,7 +58,35 @@ STANDARD: dict = {
     # "bis" vor "von" bedeutet: ueber Mitternacht (z. B. 21:00 bis 07:00)
     "ruhezeiten": [],
     "spotify_client_id": "",    # Client-ID der eigenen Spotify-Developer-App
+    "tidal_qualitaet": "LOSSLESS",  # Tidal-Quelle: "LOSSLESS" (FLAC) oder "HIGH" (AAC 320)
 }
+
+def port_pruefen(wert, bezeichnung: str) -> int:
+    """Prueft eine Portangabe aus der Oberflaeche. Wirft ValueError mit deutscher Meldung."""
+    try:
+        port = int(str(wert).strip())
+    except ValueError:
+        raise ValueError(f"{bezeichnung}: bitte eine Zahl angeben.") from None
+    # Unter 1024 sind Systemdienste ueblich, 49152 und hoeher vergibt Windows dynamisch
+    if not 1024 <= port <= 49151:
+        raise ValueError(f"{bezeichnung}: erlaubt ist 1024 bis 49151.")
+    return port
+
+
+def verknuepfung_schreiben(port: int) -> None:
+    """
+    Aktualisiert die Startmenue-Verknuepfung "Raumfeld Remote.url" im Programmordner,
+    damit sie nach einer Portaenderung auf den richtigen Port zeigt.
+    Nur in der installierten Fassung (PyInstaller-EXE); beim Entwickeln passiert nichts.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    datei = Path(sys.executable).parent / "Raumfeld Remote.url"
+    try:
+        datei.write_text(f"[InternetShortcut]\r\nURL=http://localhost:{port}/\r\n", encoding="ascii")
+    except OSError as exc:
+        protokoll(f"✗ Startmenü-Verknüpfung nicht aktualisiert: {exc}")
+
 
 # Wochentage fuer Meldungen (Index wie datetime.weekday())
 WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -190,6 +226,8 @@ class Zentrale:
         self.spotify = Spotify(konfig_ordner() / "spotify_token.json", self.einst["spotify_client_id"])
         self._spotify_anmeldung: tuple[str, str] | None = None   # (verifier, state) waehrend der Anmeldung
         self.spotify_geraet = ""   # zuletzt per Spotify Connect gestartetes Geraet (fuer Ruhezeit-Pause)
+        # Tidal: gemeinsames Konto, Zugang dauerhaft in tidal_sitzung.json
+        self.tidal = Tidal(konfig_ordner() / "tidal_sitzung.json", self.einst["tidal_qualitaet"])
 
     # ------------------------------------------------------------ Start
     def starten(self) -> None:
@@ -259,6 +297,8 @@ class Zentrale:
                 self.server = StreamServer(int(self.einst["stream_port"]),
                                            self.einst["bitrate"], self._cookie_args())
                 self.server.starten()
+                # Titel "tidal:<ID>" loest der Stream-Server erst beim Abruf ueber Tidal auf
+                self.server.aufloeser[TIDAL_PRAEFIX.rstrip(":")] = self.tidal.stream_adresse
             self.server.cookie_args = self._cookie_args()  # evtl. neue cookies.txt
             return self.server
 
@@ -320,6 +360,46 @@ class Zentrale:
             box.gestartet_von = wer
             box.wiedergabe.starte(liste, mischen=zufall)
         return f"{len(liste)} Titel auf {box.renderer.name} gestartet."
+
+    # ------------------------------------------------------------ Tidal
+    def tidal_status(self) -> dict:
+        """Zustand des Tidal-Kontos fuer die Oberflaeche."""
+        anmeldung = self.tidal.anmeldung
+        if anmeldung and not anmeldung["fehler"] and time.time() > anmeldung["bis"]:
+            anmeldung = dict(anmeldung, fehler="Der Code ist abgelaufen – bitte neu anmelden.")
+        return {"verfuegbar": self.tidal.verfuegbar(),
+                "angemeldet": self.tidal.angemeldet(),
+                "benutzer": self.tidal.benutzer,
+                "anmeldung": anmeldung,
+                "qualitaet": self.tidal.qualitaet}
+
+    def tidal_anmelden_start(self, wer: str) -> dict:
+        protokoll(f"{wer}: Tidal-Anmeldung angefordert.")
+        return self.tidal.anmelden_start()
+
+    def tidal_abmelden(self, wer: str) -> None:
+        self.tidal.abmelden()
+        protokoll(f"{wer}: Tidal-Konto getrennt.")
+
+    def tidal_playlists(self) -> list[dict]:
+        return self.tidal.playlists()
+
+    def tidal_abspielen(self, location: str, eingabe: str, zufall: bool, wer: str) -> str:
+        """
+        Tidal-Playlist, -Favoriten, -Link oder -Suche auf einem Raumfeld-Lautsprecher abspielen.
+        Der Ton kommt direkt von Tidal (nicht ueber YouTube); ffmpeg wandelt ihn in MP3.
+        """
+        self._ruhezeit_sperre()
+        if finde_programm("ffmpeg") is None:
+            raise ValueError("ffmpeg fehlt auf dem Server – bitte neu installieren.")
+        box = self._box(location)
+        titel, beschreibung = self.tidal.titel_liste(eingabe)
+        if not titel:
+            raise ValueError("Keine abspielbaren Tidal-Titel gefunden.")
+        protokoll(f"{wer}: Tidal {beschreibung} ({len(titel)} Titel) auf {box.renderer.name}")
+        liste = [Titel(f"{TIDAL_PRAEFIX}{kennung}", name) for kennung, name in titel]
+        meldung = self._liste_starten(box, liste, zufall, wer)
+        return f"Tidal: {beschreibung} – {meldung}"
 
     # ------------------------------------------------------------ Spotify
     def spotify_status(self) -> dict:
@@ -478,9 +558,19 @@ class Zentrale:
         return {k: self.einst[k] for k in STANDARD
                 if k not in ("passwort_hash", "geheimschluessel")}
 
-    def einstellungen_speichern(self, neu: dict) -> None:
-        """Prueft und speichert Einstellungen aus der Web-Oberflaeche."""
+    def einstellungen_speichern(self, neu: dict) -> bool:
+        """
+        Prueft und speichert Einstellungen aus der Web-Oberflaeche.
+        Rueckgabe: True, wenn ein Port geaendert wurde (wirkt erst nach Neustart des Dienstes).
+        """
         werte: dict = {}
+        # Ports: beide pruefen und gegeneinander abgleichen
+        web_port = port_pruefen(neu.get("web_port", self.einst["web_port"]), "Port der Web-Oberfläche")
+        stream_port = port_pruefen(neu.get("stream_port", self.einst["stream_port"]), "Stream-Port")
+        if web_port == stream_port:
+            raise ValueError("Web-Oberfläche und Stream brauchen verschiedene Ports.")
+        neustart_noetig = (web_port != self.einst["web_port"] or stream_port != self.einst["stream_port"])
+        werte["web_port"], werte["stream_port"] = web_port, stream_port
         if "such_netze" in neu:
             netze = [str(n).strip() for n in neu["such_netze"] if str(n).strip()]
             ungueltig = [n for n in netze if not netz_adressen([n])]
@@ -495,15 +585,36 @@ class Zentrale:
             if neu["bitrate"] not in ("128k", "192k", "256k", "320k"):
                 raise ValueError("Ungültige Bitrate.")
             werte["bitrate"] = neu["bitrate"]
+        if "tidal_qualitaet" in neu:
+            if neu["tidal_qualitaet"] not in TIDAL_QUALITAETEN:
+                raise ValueError("Ungültige Tidal-Qualität.")
+            werte["tidal_qualitaet"] = neu["tidal_qualitaet"]
+            self.tidal.qualitaet_setzen(neu["tidal_qualitaet"])
         if "favoriten" in neu:
             werte["favoriten"] = [{"name": str(f["name"])[:100], "url": str(f["url"])[:1000]}
                                   for f in neu["favoriten"] if f.get("url")]
+        netze_neu = "such_netze" in werte and werte["such_netze"] != self.einst["such_netze"]
         self.einst.setzen(**werte)
+        if netze_neu:
+            # Geaenderte Netze sofort durchsuchen, nicht erst beim naechsten Klick auf "Suchen"
+            self.suchen_im_hintergrund()
         if "bitrate" in werte and self.server:
             self.server.bitrate = werte["bitrate"]  # gilt ab dem naechsten Titel
         protokoll(f"Einstellungen geändert: {', '.join(werte) or '–'}")
         # Neue Ruhezeit greift sofort
         self._ruhezeit_pruefen_einmal()
+        return neustart_noetig
+
+    def neu_starten(self) -> None:
+        """
+        Beendet den Prozess nach kurzer Verzoegerung (damit die HTTP-Antwort noch rausgeht).
+        Der Exit-Code 1 gilt fuer WinSW als Absturz -> es startet den Dienst nach
+        10 Sekunden neu (<onfailure action="restart"> in RaumfeldRemote-Dienst.xml).
+        So greifen geaenderte Ports, ohne dass jemand an den Server muss.
+        """
+        protokoll("Dienst wird auf Wunsch neu gestartet …")
+        self.alles_stoppen("Dienst wird neu gestartet.")
+        threading.Timer(1.5, os._exit, args=(1,)).start()
 
     # ------------------------------------------------------------ Hintergrund
     def _ruhezeit_pruefen_einmal(self) -> None:

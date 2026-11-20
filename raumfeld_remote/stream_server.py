@@ -88,7 +88,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
         prozesse = self._pipeline_starten(quelle)
         if not prozesse:
-            protokoll("  -> ffmpeg oder yt-dlp nicht gefunden")
+            protokoll("  -> kein Stream: ffmpeg/yt-dlp fehlt oder Quelle nicht auflösbar (siehe oben)")
             return
         ffmpeg = prozesse[-1]
         gesendet = 0
@@ -120,6 +120,25 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         bitrate = self.server.bitrate  # type: ignore[attr-defined]
         ausgabe = ["-vn", "-acodec", "libmp3lame", "-b:a", bitrate,
                    "-ar", "44100", "-f", "mp3", "pipe:1"]
+
+        # Quellen mit Praefix (z. B. "tidal:12345"): Aufloeser liefert eine Eingabe fuer
+        # ffmpeg (direkte URL oder Pfad einer HLS-Liste). Wird erst jetzt aufgerufen,
+        # weil solche Stream-Adressen nur kurz gueltig sind.
+        praefix, trenner, rest = quelle.partition(":")
+        aufloeser = self.server.aufloeser.get(praefix) if trenner else None  # type: ignore[attr-defined]
+        if aufloeser is not None:
+            try:
+                eingabe = aufloeser(rest)
+            except Exception as exc:  # noqa: BLE001 - Fehler nur protokollieren
+                protokoll(f"  ✗ {praefix}: {exc}")
+                return []
+            ffmpeg = _starte("ffmpeg",
+                [ffmpeg_exe, "-hide_banner", "-loglevel", "error", "-nostdin",
+                 # HLS-Listen verweisen auf https-Segmente -> Protokolle ausdruecklich erlauben
+                 "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                 "-i", eingabe, *ausgabe],
+                stdout=subprocess.PIPE)
+            return [ffmpeg]
 
         if os.path.isfile(quelle):
             # Lokale Datei: ffmpeg liest direkt
@@ -169,6 +188,9 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         self.quellen: dict[str, str] = {}
         # Nummer (als Text) -> Anzahl GET-Anfragen (zeigt, ob der Lautsprecher den Stream abruft)
         self.abrufe: dict[str, int] = {}
+        # Praefix -> Funktion, die eine Quelle wie "tidal:12345" in eine ffmpeg-Eingabe
+        # (URL oder Dateipfad) umwandelt; wird von der Zentrale befuellt
+        self.aufloeser: dict = {}
         protokoll(f"=== Stream-Server gestartet auf Port {port} ===")
         self._thread: threading.Thread | None = None
 

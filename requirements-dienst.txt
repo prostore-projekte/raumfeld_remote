@@ -1,3 +1,5 @@
 # Abhaengigkeiten des zentralen Dienstes (Web-Oberflaeche)
 flask>=3.0
 waitress>=3.0
+# Tidal (inoffizielle Schnittstelle, Anmeldung per Geraete-Code) - siehe raumfeld_remote/tidal.py
+tidalapi>=0.8.11,<0.9

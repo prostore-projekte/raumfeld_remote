@@ -27,6 +27,7 @@ from . import __version__
 from .einstellungen import konfig_ordner
 from .protokoll import abonnieren, protokoll
 from .spotify import SpotifyFehler
+from .tidal import TidalFehler
 from .zentrale import Zentrale
 
 WEB_ORDNER = Path(__file__).resolve().parent / "web"   # HTML-Seiten
@@ -118,7 +119,7 @@ def app_erzeugen(zentrale: Zentrale) -> Flask:
         def huelle(*args, **kwargs):
             try:
                 return funktion(*args, **kwargs)
-            except (ValueError, SpotifyFehler) as exc:
+            except (ValueError, SpotifyFehler, TidalFehler) as exc:
                 return jsonify(fehler=str(exc)), 400
             except RuntimeError as exc:   # z. B. Lautsprecher nicht erreichbar
                 return jsonify(fehler=str(exc)), 502
@@ -247,8 +248,19 @@ def app_erzeugen(zentrale: Zentrale) -> Flask:
     @app.post("/api/einstellungen")
     @api
     def api_einstellungen():
-        zentrale.einstellungen_speichern(daten())
+        if zentrale.einstellungen_speichern(daten()):
+            # Ports wirken erst nach Neustart -> Oberflaeche bietet den Neustart an
+            return jsonify(meldung="Gespeichert. Die neuen Ports gelten erst nach einem Neustart des Dienstes.",
+                           neustart=True)
         return jsonify(meldung="Gespeichert – gilt für alle.")
+
+    @app.post("/api/dienst/neustart")
+    @api
+    def api_dienst_neustart():
+        """Dienst neu starten (z. B. nach Portaenderung). WinSW startet ihn nach ca. 10 s wieder."""
+        zentrale.neu_starten()
+        return jsonify(meldung="Dienst startet neu – in etwa 15 Sekunden wieder erreichbar.",
+                       web_port=zentrale.einst["web_port"])
 
     @app.post("/api/cookies")
     @api
@@ -328,6 +340,37 @@ def app_erzeugen(zentrale: Zentrale) -> Flask:
         d = daten()
         zentrale.spotify_steuern(str(d.get("geraet", "")), str(d.get("aktion", "")))
         return jsonify(ok=True)
+
+    # ------------------------------------------------------------ API: Tidal
+    @app.get("/api/tidal")
+    @api
+    def api_tidal_status():
+        return jsonify(zentrale.tidal_status())
+
+    @app.post("/api/tidal/anmelden")
+    @api
+    def api_tidal_anmelden():
+        """Startet die Anmeldung per Geraete-Code; Rueckgabe: Code und Link zu link.tidal.com."""
+        return jsonify(zentrale.tidal_anmelden_start(wer()))
+
+    @app.post("/api/tidal/abmelden")
+    @api
+    def api_tidal_abmelden():
+        zentrale.tidal_abmelden(wer())
+        return jsonify(meldung="Tidal getrennt.")
+
+    @app.get("/api/tidal/playlists")
+    @api
+    def api_tidal_playlists():
+        return jsonify(playlists=zentrale.tidal_playlists())
+
+    @app.post("/api/tidal/abspielen")
+    @api
+    def api_tidal_abspielen():
+        d = daten()
+        meldung = zentrale.tidal_abspielen(str(d.get("box", "")), str(d.get("eingabe", "")),
+                                           bool(d.get("zufall")), wer())
+        return jsonify(meldung=meldung)
 
     @app.post("/api/passwort")
     @api

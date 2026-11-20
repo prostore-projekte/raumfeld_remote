@@ -122,10 +122,10 @@ jobs:
       - name: Pruefen (pyflakes, Import)
         run: |
           python -m pyflakes raumfeld_remote dienst_start.py
-          python -c "import raumfeld_remote.web, raumfeld_remote.zentrale, raumfeld_remote.dienst"
+          python -c "import raumfeld_remote.web, raumfeld_remote.zentrale, raumfeld_remote.dienst, tidalapi"
 
       - name: Dienst-EXE bauen (PyInstaller, Ordner-Variante)
-        run: pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" dienst_start.py
+        run: pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" --hidden-import tidalapi --collect-submodules tidalapi dienst_start.py
 
       - name: Paket zusammenstellen (Dienst, WinSW, yt-dlp, ffmpeg, deno)
         run: |
@@ -161,7 +161,7 @@ jobs:
           $antwort = $null
           for ($i = 0; $i -lt 30 -and -not $antwort; $i++) {
             Start-Sleep -Seconds 2
-            try { $antwort = Invoke-WebRequest http://localhost:8080/einrichten -UseBasicParsing } catch { }
+            try { $antwort = Invoke-WebRequest http://localhost:8766/einrichten -UseBasicParsing } catch { }
           }
           if (-not $antwort -or $antwort.Content -notmatch 'Passwort') {
             Get-Content install.log -Tail 40
@@ -171,8 +171,34 @@ jobs:
           $dienst = Get-Service RaumfeldRemote
           Write-Host "Dienst: $($dienst.Status), Starttyp: $($dienst.StartType)"
           if ($dienst.Status -ne 'Running') { throw "Dienst laeuft nicht" }
-          netsh advfirewall firewall show rule name="Raumfeld Remote Web" | Select-String "8080" | Out-Host
-          if ($LASTEXITCODE -ne 0) { throw "Firewall-Regel fehlt" }
+          # Firewall: Programmregel fuer die Dienst-EXE (gilt fuer alle Ports und die UDP-Suche)
+          $regel = netsh advfirewall firewall show rule name="Raumfeld Remote Dienst" verbose | Out-String
+          Write-Host $regel
+          if ($regel -notmatch 'RaumfeldRemoteDienst\.exe') { throw "Firewall-Programmregel fehlt" }
+          # Verknuepfung zeigt auf den neuen Standard-Port
+          Get-Content "C:\Program Files\RaumfeldRemote\Raumfeld Remote.url" | Out-Host
+          # Port-Wechsel ueber die Web-Oberflaeche testen: Passwort einrichten, Port aendern,
+          # Dienst neu starten lassen (WinSW startet ihn nach Exit-Code 1 neu), neuen Port pruefen
+          $web = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+          Invoke-WebRequest http://localhost:8766/einrichten -Method Post -WebSession $web -UseBasicParsing `
+            -Body @{ passwort = 'CiTest-12345'; passwort2 = 'CiTest-12345' } | Out-Null
+          $antwort = Invoke-RestMethod http://localhost:8766/api/einstellungen -Method Post -WebSession $web `
+            -ContentType 'application/json' -Body '{"web_port": 8767}'
+          Write-Host "Einstellungen: $($antwort.meldung)"
+          if (-not $antwort.neustart) { throw "Portaenderung meldet keinen noetigen Neustart" }
+          Invoke-RestMethod http://localhost:8766/api/dienst/neustart -Method Post -WebSession $web `
+            -ContentType 'application/json' -Body '{}' | Out-Host
+          $antwort = $null
+          for ($i = 0; $i -lt 30 -and -not $antwort; $i++) {
+            Start-Sleep -Seconds 2
+            try { $antwort = Invoke-WebRequest http://localhost:8767/login -UseBasicParsing } catch { }
+          }
+          if (-not $antwort) {
+            Get-Content C:\ProgramData\RaumfeldRemote\stream.log -Tail 20
+            throw "Dienst nach Neustart nicht auf dem neuen Port 8767 erreichbar"
+          }
+          Write-Host "Neustart und Portwechsel OK"
+          Get-Content "C:\Program Files\RaumfeldRemote\Raumfeld Remote.url" | Out-Host
           foreach ($t in 'yt-dlp.exe','ffmpeg.exe','deno.exe') {
             if (-not (Test-Path "C:\Program Files\RaumfeldRemote\tools\$t")) { throw "$t fehlt" }
           }
