@@ -18,11 +18,13 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import random
 import secrets
 import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,7 +38,7 @@ from .tidal import PRAEFIX as TIDAL_PRAEFIX
 from .tidal import QUALITAETEN as TIDAL_QUALITAETEN
 from .tidal import Tidal
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
-                   renderer_laden, renderer_suchen, setze_lautstaerke)
+                   port_neu_suchen, renderer_laden, renderer_suchen, setze_lautstaerke)
 
 # ---------------------------------------------------------------------------
 # Einstellungen des Dienstes
@@ -53,6 +55,11 @@ STANDARD: dict = {
     "bitrate": "320k",          # MP3-Bitrate
     "such_netze": [],           # weitere Netze fuer die Suche, z. B. ["192.168.20.0/24"]
     "manuelle_boxen": [],       # Geraete-URLs, die bei jeder Suche direkt abgefragt werden
+    # Automatisch gemerkte Geraete-URLs (einmal gefunden oder aus der Einzelplatz-Variante
+    # uebernommen). Werden bei jeder Suche direkt abgefragt - wichtig fuer Netze hinter
+    # VPN/Router, in denen die SSDP-Suche keine Antwort bekommt.
+    "bekannte_boxen": [],
+    "alte_geraete_geprueft": False,   # Uebernahme aus der Einzelplatz-Variante schon erfolgt?
     "favoriten": [],            # Liste aus {"name": ..., "url": ...}
     # Ruhezeiten: Liste aus {"tage": [0..6] (0 = Montag), "von": "HH:MM", "bis": "HH:MM"}
     # "bis" vor "von" bedeutet: ueber Mitternacht (z. B. 21:00 bis 07:00)
@@ -87,6 +94,9 @@ def verknuepfung_schreiben(port: int) -> None:
     except OSError as exc:
         protokoll(f"✗ Startmenü-Verknüpfung nicht aktualisiert: {exc}")
 
+
+# Grosse Playlists: so viele Titel werden sofort geladen, der Rest im Hintergrund
+ANFANG_TITEL = 25
 
 # Wochentage fuer Meldungen (Index wie datetime.weekday())
 WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -222,6 +232,9 @@ class Zentrale:
         self._zaehler = 0                         # fuer eindeutige Stream-Praefixe
         self.suche_laeuft = False
         self.letzte_suche = 0.0
+        # Port-Neusuche: URL -> Zeitpunkt des letzten erfolglosen Versuchs (nicht bei jeder
+        # Suche erneut ~30 s scannen, wenn eine Box z. B. ausgeschaltet ist)
+        self._neusuche_fehlschlag: dict[str, float] = {}
         # Spotify: ein gemeinsames Konto fuer alle (Token im Datenordner)
         self.spotify = Spotify(konfig_ordner() / "spotify_token.json", self.einst["spotify_client_id"])
         self._spotify_anmeldung: tuple[str, str] | None = None   # (verifier, state) waehrend der Anmeldung
@@ -233,6 +246,8 @@ class Zentrale:
     def starten(self) -> None:
         """Hintergrund-Aufgaben starten: erste Suche, Ruhezeit-Waechter, yt-dlp-Update."""
         protokoll("=== Raumfeld Remote Dienst gestartet ===")
+        if not self.einst["alte_geraete_geprueft"]:
+            self._alte_geraete_uebernehmen()
         self.suchen_im_hintergrund()
         threading.Thread(target=self._ruhezeit_waechter, daemon=True).start()
         threading.Thread(target=self._ytdlp_aktualisieren_schleife, daemon=True).start()
@@ -246,23 +261,122 @@ class Zentrale:
             self.suche_laeuft = True
         threading.Thread(target=self._suchen, daemon=True).start()
 
+    def _alte_geraete_uebernehmen(self) -> None:
+        r"""
+        Einmalig: Geraete-URLs aus der Einzelplatz-Variante (Desktop-Programm) uebernehmen.
+        Das Desktop-Programm merkt sich die zuletzt gewaehlte Box und fest eingetragene Geraete
+        und fragt sie bei jeder Suche direkt ab - deshalb fand es Boxen hinter dem VPN "sofort",
+        auch wenn die SSDP-Suche dort keine Antwort bekommt.
+        Gelesen werden (der Dienst laeuft als SYSTEM und darf das):
+          - %PROGRAMDATA%\RaumfeldRemote\einstellungen.json   (gemeinsame Einstellungen)
+          - C:\Users\*\AppData\Roaming\RaumfeldRemote\einstellungen.json  (je Benutzer)
+        """
+        dateien = [konfig_ordner() / "einstellungen.json"]
+        oeffentlich = os.environ.get("PUBLIC")   # z. B. C:\Users\Public -> Elternordner = C:\Users
+        if oeffentlich:
+            benutzer_ordner = Path(oeffentlich).parent
+            try:
+                dateien += list(benutzer_ordner.glob("*/AppData/Roaming/RaumfeldRemote/einstellungen.json"))
+            except OSError:
+                pass   # z. B. fehlende Rechte -> nur die gemeinsame Datei
+        urls: list[str] = []
+        for datei in dateien:
+            try:
+                daten = json.loads(datei.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            kandidaten = list(daten.get("manuelle_boxen") or []) + [daten.get("letzte_box") or ""]
+            for url in kandidaten:
+                if isinstance(url, str) and url.startswith("http") and url not in urls:
+                    urls.append(url)
+        neu = [u for u in urls if u not in self.einst["bekannte_boxen"]]
+        self.einst.setzen(bekannte_boxen=self.einst["bekannte_boxen"] + neu, alte_geraete_geprueft=True)
+        if neu:
+            protokoll(f"{len(neu)} Gerät(e) aus der Einzelplatz-Variante übernommen: {', '.join(neu)}")
+        else:
+            protokoll("Keine Geräte aus der Einzelplatz-Variante gefunden.")
+
     def _suchen(self) -> None:
         try:
             protokoll("Lautsprechersuche gestartet …")
+            bekannte = self.einst["manuelle_boxen"] + [
+                u for u in self.einst["bekannte_boxen"] if u not in self.einst["manuelle_boxen"]]
             gefunden = renderer_suchen(timeout=4.0,
                                        zusatz_netze=self.einst["such_netze"],
-                                       bekannte_urls=self.einst["manuelle_boxen"])
+                                       bekannte_urls=bekannte)
+            gefunden += self._ports_neu_suchen(bekannte, gefunden)
             with self._sperre:
                 for r in gefunden:
                     if r.location in self.boxen:
                         self.boxen[r.location].renderer = r   # Daten auffrischen
                     else:
                         self.boxen[r.location] = BoxZustand(renderer=r)
-            protokoll(f"Lautsprechersuche fertig: {len(gefunden)} Gerät(e) gefunden.")
+            # Gefundene Geraete dauerhaft merken (max. 50), damit sie beim naechsten Mal
+            # auch ohne SSDP-Antwort direkt abgefragt werden
+            gemerkt = self.einst["bekannte_boxen"]
+            neu = [r.location for r in gefunden if r.location not in gemerkt]
+            if neu:
+                self.einst.setzen(bekannte_boxen=(gemerkt + neu)[-50:])
+            protokoll(f"Lautsprechersuche fertig: {len(gefunden)} Gerät(e) gefunden"
+                      + (f" ({len(bekannte)} gemerkte Adresse(n) direkt abgefragt)." if bekannte else "."))
         finally:
             with self._sperre:
                 self.suche_laeuft = False
                 self.letzte_suche = time.time()
+
+    def _ports_neu_suchen(self, bekannte: list[str], gefunden: list[Renderer]) -> list[Renderer]:
+        """
+        Gemerkte/eingetragene Geraete-URLs, die nicht geantwortet haben, unter neuem Port suchen
+        (der Port der Raumfeld-Boxen aendert sich offenbar bei einem Neustart).
+        Gefundene neue URLs ersetzen die alten in den Einstellungen. Rueckgabe: neu gefundene Renderer.
+        """
+        def schluessel(url: str) -> tuple:
+            teile = urllib.parse.urlparse(url)
+            return teile.hostname, teile.path   # Host + Pfad (UUID) = dieselbe Box
+
+        bereits = {schluessel(r.location) for r in gefunden}
+        jetzt = time.time()
+        veraltet = [u for u in dict.fromkeys(bekannte)
+                    if schluessel(u) not in bereits
+                    and jetzt - self._neusuche_fehlschlag.get(u, 0) > 600]   # 10 Min. Pause nach Fehlschlag
+        if not veraltet:
+            return []
+        protokoll(f"Suche {len(veraltet)} gemerkte Box(en) unter neuem Port …")
+        ergebnisse: dict[str, Renderer | None] = {}
+
+        def suchen(url: str) -> None:
+            ergebnisse[url] = port_neu_suchen(url)
+
+        threads = [threading.Thread(target=suchen, args=(u,), daemon=True) for u in veraltet]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        neu: list[Renderer] = []
+        ersetzungen: dict[str, str] = {}
+        for alt, r in ergebnisse.items():
+            if r is None:
+                self._neusuche_fehlschlag[alt] = time.time()
+                continue
+            self._neusuche_fehlschlag.pop(alt, None)
+            ersetzungen[alt] = r.location
+            if schluessel(r.location) not in bereits:
+                neu.append(r)
+                bereits.add(schluessel(r.location))
+        if ersetzungen:
+            # Alte URLs in beiden Listen durch die neuen ersetzen (Reihenfolge bleibt, keine Doppelten)
+            def tauschen(liste: list[str]) -> list[str]:
+                return list(dict.fromkeys(ersetzungen.get(u, u) for u in liste))
+            self.einst.setzen(manuelle_boxen=tauschen(self.einst["manuelle_boxen"]),
+                              bekannte_boxen=tauschen(self.einst["bekannte_boxen"]))
+            # Veraltete Eintraege aus der Lautsprecherliste nehmen (nur, wenn dort nichts laeuft)
+            with self._sperre:
+                for alt in ersetzungen:
+                    box = self.boxen.get(alt)
+                    if box and not (box.wiedergabe and box.wiedergabe.laeuft):
+                        del self.boxen[alt]
+        return neu
 
     def box_hinzufuegen(self, url: str) -> str:
         """Geraet per URL hinzufuegen und dauerhaft merken. Rueckgabe: Name."""
@@ -325,13 +439,36 @@ class Zentrale:
             raise ValueError("Bitte einen Link oder Suchbegriff eingeben.")
 
         protokoll(f"{wer}: Abspielen auf {box.renderer.name}: {', '.join(eingaben)[:200]}")
-        liste, fehler = titel_liste_aufbauen(eingaben, self._cookie_args(), einzeln)
+        # Grosse Playlists: erst den Anfang laden und sofort starten, den Rest im Hintergrund
+        # nachladen (das vollstaendige Einlesen kann ueber eine Minute dauern).
+        zweistufig = (len(eingaben) == 1 and not einzeln and "list=" in eingaben[0])
+        liste, fehler = titel_liste_aufbauen(eingaben, self._cookie_args(), einzeln,
+                                             bis=ANFANG_TITEL if zweistufig else None)
         for f in fehler:
             protokoll(f"  Hinweis: {f}")
         if not liste:
             raise ValueError("Keine abspielbaren Titel gefunden. " + " ".join(fehler))
 
-        return self._liste_starten(box, liste, zufall, wer)
+        meldung = self._liste_starten(box, liste, zufall, wer)
+        if zweistufig and len(liste) >= ANFANG_TITEL:
+            wiedergabe = box.wiedergabe
+            threading.Thread(target=self._rest_nachladen,
+                             args=(box, wiedergabe, eingaben[0], zufall), daemon=True).start()
+            meldung += " Weitere Titel der Playlist werden nachgeladen …"
+        return meldung
+
+    def _rest_nachladen(self, box: BoxZustand, wiedergabe, url: str, zufall: bool) -> None:
+        """Hintergrund: restliche Titel einer grossen Playlist laden und anhaengen."""
+        beginn = time.monotonic()
+        rest, _fehler = titel_liste_aufbauen([url], self._cookie_args(), ab=ANFANG_TITEL + 1)
+        # Inzwischen etwas anderes gestartet? Dann nichts anhaengen.
+        if box.wiedergabe is not wiedergabe or not wiedergabe.laeuft or not rest:
+            return
+        if zufall:
+            random.shuffle(rest)
+        wiedergabe.anhaengen(rest)
+        protokoll(f"  {box.renderer.name}: {len(rest)} weitere Titel nachgeladen "
+                  f"({time.monotonic() - beginn:.0f} s).")
 
     def _liste_starten(self, box: BoxZustand, liste: list[Titel], zufall: bool, wer: str) -> str:
         """Startet eine fertige Titelliste auf einem Lautsprecher (ersetzt dessen Warteschlange)."""

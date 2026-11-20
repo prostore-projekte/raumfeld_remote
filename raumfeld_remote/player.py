@@ -66,6 +66,18 @@ class Wiedergabe:
         self._thread = threading.Thread(target=self._lauf, daemon=True)
         self._thread.start()
 
+    def anhaengen(self, titel: list[Titel]) -> None:
+        """
+        Haengt weitere Titel hinten an die laufende Warteschlange an
+        (z. B. den Rest einer grossen Playlist, der im Hintergrund nachgeladen wurde).
+        """
+        start = len(self._titel)
+        # Erst dem Server die neuen Nummern mitteilen, dann die Liste verlaengern -
+        # so kann der Wiedergabe-Thread nie einen Titel ohne Server-Eintrag erreichen.
+        self.server.quellen.update({f"{self.praefix}{start + i}": t.quelle
+                                    for i, t in enumerate(titel)})
+        self._titel.extend(titel)
+
     @property
     def warteschlange(self) -> tuple[list[str], int]:
         """Anzeigenamen aller Titel und Index des aktuellen Titels (fuer die Web-Oberflaeche)."""
@@ -118,6 +130,16 @@ class Wiedergabe:
             self.bei_titel(self._index, len(self._titel), titel.titel)
 
             url = f"http://{self.eigene_ip}:{self.server.port}/stream/{self.praefix}{self._index}.mp3"
+            # Titeldaten vorab ermitteln (falls nicht schon im Hintergrund geschehen):
+            # Dann liefert der Stream sofort Daten, sobald der Lautsprecher ihn abruft.
+            # Ohne Vorbereitung wartet die Box 10-20 s auf die ersten Daten.
+            self.server.vorbereiten(titel.quelle)
+            if self._ende:
+                break      # waehrenddessen Stop gedrueckt
+            if self._sprung is not None:
+                self._wecker.clear()
+                self._index = self._sprung   # waehrenddessen Weiter/Zurueck gedrueckt
+                continue
             try:
                 try:
                     avt(self.renderer, "Stop")   # alte Wiedergabe beenden
@@ -127,6 +149,9 @@ class Wiedergabe:
                     CurrentURIMetaData=baue_didl(titel.titel, url))
                 avt(self.renderer, "Play", Speed=1)
                 self._abruf_pruefen(f"{self.praefix}{self._index}", url)
+                # Naechsten Titel schon jetzt vorbereiten, damit der Wechsel schnell geht
+                if self._index + 1 < len(self._titel):
+                    self.server.vorbereiten_im_hintergrund(self._titel[self._index + 1].quelle)
             except (RuntimeError, OSError) as exc:
                 self.bei_meldung(f"Fehler bei „{titel.titel}“: {exc}")
                 self._index += 1

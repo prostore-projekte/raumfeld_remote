@@ -43,6 +43,11 @@ die Seite auf den neuen Port. Die Startmenü-Verknüpfung passt sich an.
 **Lautsprecher im anderen Netz werden nicht gefunden?** Unter **⚙ Einstellungen → Netzwerk** das Netz eintragen
 (z. B. `192.168.20.0/24`) und speichern – die Suche startet dann sofort. Im Protokoll steht danach, wie viele Adressen
 angefragt wurden und welche geantwortet haben. Kommt keine Antwort: das Gerät unter „Gerät per URL hinzufügen“ fest eintragen.
+Der Dienst übernimmt beim ersten Start die Geräte, die sich die Einzelplatz-Variante gemerkt hat (zuletzt benutzte
+und fest eingetragene Lautsprecher aller Benutzer), und merkt sich jedes gefundene Gerät. Diese Adressen fragt er bei
+jeder Suche direkt ab – das klappt auch dann, wenn die Netzsuche über VPN/Router keine Antwort bekommt.
+Antwortet eine gemerkte Box nicht mehr (Raumfeld-Boxen wechseln nach einem Neustart offenbar den Port), sucht der
+Dienst sie am selben Rechner unter neuem Port (dauert bis ca. 30 s) und trägt die neue Adresse automatisch ein.
 
 ### Setup-EXE selbst bauen
 Normalerweise nicht nötig. Die Setup-EXE wird von GitHub Actions (Workflow **Windows-Build**, Job `dienst-installer`,
@@ -63,8 +68,8 @@ Lokal unter Windows bauen (dieselben Schritte wie im Workflow; lokal so noch nic
    - [WinSW-x64.exe v2.12.0](https://github.com/winsw/winsw/releases/tag/v2.12.0) als `paket_dienst\RaumfeldRemote-Dienst.exe` speichern
    - In `paket_dienst\tools\`: `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe`
 5. Installer erzeugen (Version wie in `raumfeld_remote/__init__.py`):
-   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.11.0 installer\raumfeld_remote.iss`
-6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.11.0.exe`
+   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.13.0 installer\raumfeld_remote.iss`
+6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.13.0.exe`
 
 **Funktionen der Web-Oberfläche:**
 - Anmeldung mit einem gemeinsamen Passwort (30 Tage angemeldet bleiben; Sperre nach 5 Fehlversuchen für 10 Minuten)
