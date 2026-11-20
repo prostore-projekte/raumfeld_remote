@@ -75,7 +75,7 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Raumfeld Remote Dienst"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Raumfeld Remote Dienst"" dir=in action=allow program=""{app}\{#ProgrammExe}"" enable=yes profile=domain,private"; Flags: runhidden waituntilterminated
 ; Gewaehlten Port der Web-Oberflaeche in dienst.json eintragen (vor dem Dienststart)
-Filename: "{app}\{#ProgrammExe}"; Parameters: "--web-port-setzen {code:WebPort} --daten ""{commonappdata}\RaumfeldRemote""; Flags: runhidden waituntilterminated; StatusMsg: "Port wird eingetragen …"
+Filename: "{app}\{#ProgrammExe}"; Parameters: "--web-port-setzen {code:WebPort} --daten ""{commonappdata}\RaumfeldRemote"""; Flags: runhidden waituntilterminated; StatusMsg: "Port wird eingetragen …"
 ; Dienst einrichten und starten
 Filename: "{app}\{#DienstExe}"; Parameters: "install"; Flags: runhidden waituntilterminated; StatusMsg: "Dienst wird eingerichtet …"
 Filename: "{app}\{#DienstExe}"; Parameters: "start"; Flags: runhidden waituntilterminated; StatusMsg: "Dienst wird gestartet …"
