@@ -43,6 +43,13 @@
   .titel { font-size:18px; font-weight:600; margin:4px 0; word-break:break-word; }
   .hinweis { padding:10px 14px; border-radius:8px; background:var(--warn-bg); color:var(--warn-text); }
   .meldung { min-height:1.5em; margin-top:8px; }
+  /* Anzeige "laeuft gerade": Cover links, Angaben rechts */
+  .jetzt { display:flex; gap:14px; align-items:flex-start; }
+  .jetzt .wachsen { flex:1; min-width:0; }
+  #cover { width:88px; height:88px; object-fit:cover; border-radius:8px; border:1px solid var(--rand); flex:none; }
+  .fortschritt { display:flex; gap:10px; align-items:center; margin-top:8px; }
+  .fortschritt .balken { flex:1; height:6px; border-radius:3px; background:var(--rand); overflow:hidden; }
+  .fortschritt .balken > div { height:100%; width:0; background:var(--akzent); }
   .meldung.fehler { color:var(--fehler); }
   .meldung.ok { color:var(--ok); }
   input[type=range] { width:100%; accent-color:var(--akzent); }
@@ -77,11 +84,20 @@
       <select id="box" class="wachsen" aria-label="Lautsprecher"></select>
       <button id="btnSuchen">🔍 Suchen</button>
     </div>
-    <div class="abstand">
-      <div class="leise" id="status">Keine Wiedergabe</div>
-      <div class="titel" id="titel"></div>
-      <div class="leise" id="boxMeldung"></div>
+    <div class="abstand jetzt">
+      <img id="cover" alt="" hidden>
+      <div class="wachsen">
+        <div class="leise" id="status">Keine Wiedergabe</div>
+        <div class="titel" id="titel"></div>
+        <div id="interpret"></div>
+        <div class="leise" id="album"></div>
+        <div class="fortschritt" id="fortschritt" hidden>
+          <div class="balken"><div id="balken"></div></div>
+          <span class="leise" id="zeiten"></span>
+        </div>
+      </div>
     </div>
+    <div class="leise" id="boxMeldung"></div>
     <div class="zeile abstand transport">
       <button id="btnZurueck" title="Zurück">⏮</button>
       <button id="btnPause" title="Pause / Weiter">⏯</button>
@@ -341,6 +357,13 @@ async function zustandHolen() {
   } catch (e) { $("status").textContent = "Server nicht erreichbar: " + e.message; }
 }
 
+/** Sekunden -> "m:ss" bzw. "h:mm:ss". */
+function zeitText(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sek = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sek}` : `${m}:${sek}`;
+}
+
 function anzeigen() {
   $("version").textContent = "v" + zustand.version;
   // Ruhezeit-Hinweis
@@ -375,12 +398,39 @@ function anzeigen() {
   // Anzeige fuer den gewaehlten Lautsprecher
   const box = zustand.boxen.find((b) => b.id === boxId());
   const laeuft = !!(box && box.laeuft);
+  // Was die Box selbst meldet - auch bei Wiedergabe aus der Raumfeld-App
+  const j = (box && box.jetzt) || {};
+  const boxSpielt = ["PLAYING", "PAUSED_PLAYBACK", "TRANSITIONING"].includes(j.zustand);
+  const fremd = !laeuft && boxSpielt;   // laeuft, aber nicht ueber diese Oberflaeche gestartet
   $("status").textContent = !box ? "Kein Lautsprecher gewählt"
+    : j.zustand === "NICHT_ERREICHBAR" ? "⚠ Lautsprecher antwortet nicht"
     : laeuft ? (box.pausiert ? "⏸ Pausiert" : "▶ Spielt") + (box.gestartet_von ? " · gestartet von " + box.gestartet_von : "")
+    : fremd ? (j.zustand === "PAUSED_PLAYBACK" ? "⏸ Pausiert" : "▶ Spielt") + " · andere Quelle (z. B. Raumfeld-App)"
     : "Keine Wiedergabe";
-  $("titel").textContent = laeuft ? box.titel : "";
+  // Titel: bei eigener Wiedergabe der Warteschlangen-Name, sonst die Angaben der Box
+  $("titel").textContent = laeuft ? box.titel : fremd ? (j.titel || "Unbekannter Titel") : "";
+  const zeigeInfo = laeuft || fremd;
+  const unterzeile = j.sender ? `${j.interpret || ""}${j.interpret ? " · " : ""}${j.sender}` : (j.interpret || "");
+  $("interpret").textContent = zeigeInfo ? unterzeile : "";
+  $("album").textContent = zeigeInfo ? (j.album || "") : "";
+  // Cover nur setzen, wenn es sich geaendert hat (sonst flackert das Bild)
+  const cover = zeigeInfo && j.cover ? j.cover : "";
+  if ($("cover").dataset.url !== cover) {
+    $("cover").dataset.url = cover;
+    if (cover) $("cover").src = cover;
+    $("cover").hidden = !cover;
+  }
+  $("cover").onerror = () => { $("cover").hidden = true; };
+  // Fortschritt (nur wenn die Box Position und Dauer meldet)
+  const mitZeit = zeigeInfo && j.dauer > 0 && j.position != null;
+  $("fortschritt").hidden = !mitZeit;
+  if (mitZeit) {
+    $("balken").style.width = Math.min(100, (100 * j.position) / j.dauer) + "%";
+    $("zeiten").textContent = `${zeitText(j.position)} / ${zeitText(j.dauer)}`;
+  }
   $("boxMeldung").textContent = box ? box.meldung : "";
-  for (const id of ["btnZurueck", "btnPause", "btnStop", "btnWeiter"]) $(id).disabled = !laeuft;
+  // Tasten: bei eigener Wiedergabe alle, bei fremder Wiedergabe direkt an die Box
+  for (const id of ["btnZurueck", "btnPause", "btnStop", "btnWeiter"]) $(id).disabled = !(laeuft || fremd);
   $("btnAbspielen").disabled = !box || !!zustand.ruhezeit;
 
   // Warteschlange
@@ -445,7 +495,9 @@ $("btnWeiter").onclick = () => steuern("naechster");
 $("btnStop").onclick = () => steuern("stop");
 $("btnPause").onclick = () => {
   const box = zustand && zustand.boxen.find((b) => b.id === boxId());
-  steuern(box && box.pausiert ? "weiter" : "pause");
+  // Eigene Wiedergabe: eigener Pause-Merker; fremde Wiedergabe: Zustand der Box
+  const pausiert = box && (box.laeuft ? box.pausiert : (box.jetzt || {}).zustand === "PAUSED_PLAYBACK");
+  steuern(pausiert ? "weiter" : "pause");
 };
 
 // ======================================================================

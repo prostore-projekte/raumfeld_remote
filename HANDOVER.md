@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.13.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.14.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -171,6 +171,15 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - „Konten“: Passwort speichern ist bei YouTube/Spotify/Tidal nicht möglich (nur Anmeldung über deren Seite);
   stattdessen wird der Zugang dauerhaft gespeichert. Sascha: „passt so“.
 
+### „Was läuft gerade“ (ab 0.14.0)
+- Sascha (0.13.0 „läuft erst mal“): wünscht Auslesen, was aktuell läuft. Umsetzung: `upnp.hole_wiedergabe_info`
+  (GetTransportInfo + GetPositionInfo, DIDL: title/artist|creator/album/albumArtURI, `*streamContent` für Radio =
+  **Annahme**), `Zentrale._anzeige_waechter` alle 3 s parallel je Box, nur wenn `/api/zustand` < 30 s alt.
+  Fremde Wiedergabe: Tasten → UPnP direkt; Ruhezeit stoppt auch fremde Wiedergabe.
+- Getestet mit simulierter UPnP-Box (SOAP) + Playwright. **Ungeprüft:** welche Metadaten Raumfeld bei Tidal/Radio/
+  App-Warteschlange wirklich liefert; ob Next/Previous bei App-Wiedergabe funktionieren; ob das Cover (URL der Box,
+  192.168.20.x) im Browser der Büro-PCs erreichbar ist.
+
 ## 8. Offene Punkte / nächste Schritte
 1. **0.11.1 installieren** und prüfen: Protokoll „… Gerät(e) aus der Einzelplatz-Variante übernommen“ und Boxen
    im Netz 192.168.20.0/24 sichtbar? Sonst Geräte-URL der Box (Desktop-Programm/Einstellungen) unter „Gerät per URL
@@ -217,3 +226,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.11.1 | Gemerkte Geräte (Übernahme aus Einzelplatz-Variante, gefundene merken) statt nur SSDP |
 | 20.11.2026 | 0.12.0 | Schnellerer Start: Playlist zweistufig, Titel vorab vorbereitet (yt-dlp -j / --load-info-json) |
 | 20.11.2026 | 0.13.0 | Port-Suche für bekannte Boxen (Port wechselt nach Neustart der Box) |
+| 20.11.2026 | 0.14.0 | „Was läuft gerade“ (GetPositionInfo/DIDL), Steuerung fremder Wiedergabe, Ruhezeit stoppt alles |
