@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 """Raumfeld Remote - Raumfeld-Lautsprecher ohne Raumfeld-App steuern."""
 
-__version__ = "0.14.1"
+__version__ = "0.15.0"

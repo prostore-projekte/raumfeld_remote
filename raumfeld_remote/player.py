@@ -45,6 +45,11 @@ class Wiedergabe:
         self._thread: threading.Thread | None = None
         # True, solange der aktuelle Titel noch vorbereitet wird (Anzeige "wird vorbereitet")
         self.vorbereitung = False
+        # Eigene Zeitmessung fuer den Fortschritt (die Box kennt bei Live-Streams keine Laenge
+        # und meldet oft keine Position): Beginn = erste Meldung PLAYING, Pausen werden abgezogen
+        self._titel_seit: float | None = None
+        self._pause_seit: float | None = None
+        self._pausen = 0.0
 
     # ------------------------------------------------------------------ API
     def starte(self, titel: list[Titel], mischen: bool = False) -> None:
@@ -106,9 +111,32 @@ class Wiedergabe:
 
     def pause(self) -> None:
         avt(self.renderer, "Pause")
+        if self._pause_seit is None:
+            self._pause_seit = time.monotonic()
 
     def fortsetzen(self) -> None:
         avt(self.renderer, "Play", Speed=1)
+        if self._pause_seit is not None:
+            self._pausen += time.monotonic() - self._pause_seit
+            self._pause_seit = None
+
+    @property
+    def fortschritt(self) -> dict:
+        """
+        Fortschritt des aktuellen Titels fuer die Anzeige:
+          position  - gespielte Sekunden (eigene Messung) oder None, solange noch nicht gestartet
+          dauer     - Laenge in Sekunden (aus den Titeldaten) oder None
+          gesendet  - bisher an die Box gesendete Bytes dieses Titels (fliessen Daten?)
+        """
+        if not (0 <= self._index < len(self._titel)):
+            return {"position": None, "dauer": None, "gesendet": 0}
+        position = None
+        if self._titel_seit is not None:
+            ende = self._pause_seit or time.monotonic()
+            position = max(0, int(ende - self._titel_seit - self._pausen))
+        return {"position": position,
+                "dauer": self.server.dauern.get(self._titel[self._index].quelle),
+                "gesendet": self.server.gesendet.get(f"{self.praefix}{self._index}", 0)}
 
     def beenden(self) -> None:
         """Stoppt Wiedergabe und Thread (blockiert hoechstens wenige Sekunden)."""
@@ -129,6 +157,7 @@ class Wiedergabe:
         while not self._ende and 0 <= self._index < len(self._titel):
             titel = self._titel[self._index]
             self._sprung = None
+            self._titel_seit, self._pause_seit, self._pausen = None, None, 0.0   # Zeitmessung neu
             self.bei_titel(self._index, len(self._titel), titel.titel)
 
             url = f"http://{self.eigene_ip}:{self.server.port}/stream/{self.praefix}{self._index}.mp3"
@@ -218,6 +247,8 @@ class Wiedergabe:
                 letzter_zustand = zustand
             if zustand == "PLAYING":
                 gestartet = True
+                if self._titel_seit is None:
+                    self._titel_seit = time.monotonic()   # ab jetzt laeuft der Titel hoerbar
             elif gestartet and zustand in ("STOPPED", "NO_MEDIA_PRESENT"):
                 return "ende"
             elif not gestartet and time.monotonic() - beginn > start_timeout:

@@ -42,7 +42,16 @@
   .leise { color:var(--leise); font-size:13px; }
   .titel { font-size:18px; font-weight:600; margin:4px 0; word-break:break-word; }
   .hinweis { padding:10px 14px; border-radius:8px; background:var(--warn-bg); color:var(--warn-text); }
+  /* "hidden" muss immer gewinnen (sonst ueberschreibt z. B. display:flex das Ausblenden) */
+  [hidden] { display:none !important; }
   .meldung { min-height:1.5em; margin-top:8px; }
+  /* Lebenszeichen: farbiger Punkt (gruen pulsierend = laeuft, gelb = Problem, grau = wartet) */
+  .lebenszeichen { display:flex; gap:8px; align-items:center; margin-top:6px; font-size:13px; }
+  .punkt { width:10px; height:10px; border-radius:50%; background:var(--leise); flex:none; }
+  .punkt.ok { background:#2e9e5b; animation:puls 1.6s ease-in-out infinite; }
+  .punkt.warn { background:#d6a018; }
+  @keyframes puls { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(.8); } }
+  @media (prefers-reduced-motion: reduce) { .punkt.ok { animation:none; } }
   /* Anzeige "laeuft gerade": Cover links, Angaben rechts */
   .jetzt { display:flex; gap:14px; align-items:flex-start; }
   .jetzt .wachsen { flex:1; min-width:0; }
@@ -91,6 +100,9 @@
         <div class="titel" id="titel"></div>
         <div id="interpret"></div>
         <div class="leise" id="album"></div>
+        <div class="lebenszeichen" id="lebenszeichen" hidden>
+          <span class="punkt" id="lzPunkt"></span><span id="lzText"></span>
+        </div>
         <div class="fortschritt" id="fortschritt" hidden>
           <div class="balken"><div id="balken"></div></div>
           <span class="leise" id="zeiten"></span>
@@ -364,6 +376,44 @@ function zeitText(s) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${sek}` : `${m}:${sek}`;
 }
 
+// Merker fuer das Lebenszeichen: wann haben sich gesendete Daten bzw. Box-Position zuletzt bewegt?
+const lz = { box: "", bytes: -1, bytesZeit: 0, pos: -1, posZeit: 0, zustandSeit: 0, zustand: "" };
+
+/** Kontrollanzeige: spielt die Box wirklich und kommen Daten an? */
+function lebenszeichenZeigen(box, laeuft, fremd, j, f) {
+  const jetzt = Date.now();
+  if (!box || box.id !== lz.box) Object.assign(lz, { box: box ? box.id : "", bytes: -1, pos: -1, zustand: "" });
+  if ((f.gesendet || 0) !== lz.bytes) { lz.bytes = f.gesendet || 0; lz.bytesZeit = jetzt; }
+  if (j.position != null && j.position !== lz.pos) { lz.pos = j.position; lz.posZeit = jetzt; }
+  if (j.zustand !== lz.zustand) { lz.zustand = j.zustand; lz.zustandSeit = jetzt; }
+  const zeigen = laeuft || fremd;
+  $("lebenszeichen").hidden = !zeigen;
+  if (!zeigen) return;
+  const daten = jetzt - lz.bytesZeit < 15000 && lz.bytes > 0;        // Daten flossen in den letzten 15 s
+  const position = jetzt - lz.posZeit < 10000 && lz.pos > 0;         // Box-Position bewegt sich
+  const mb = (f.gesendet || 0) / 1048576;
+  const menge = mb >= 1 ? mb.toFixed(1).replace(".", ",") + " MB" : Math.round((f.gesendet || 0) / 1024) + " KB";
+  let klasse = "", text = "";
+  if (laeuft && box.vorbereitung) { text = "Wartet auf YouTube …"; }
+  else if (j.zustand === "NICHT_ERREICHBAR") { klasse = "warn"; text = "Lautsprecher antwortet nicht"; }
+  else if (j.zustand === "PLAYING" && (daten || position || fremd)) {
+    klasse = "ok";
+    text = fremd ? "Box spielt" : `Box spielt · Daten fließen (${menge} übertragen)`;
+  } else if (j.zustand === "PLAYING") {
+    klasse = "warn"; text = `Box meldet „spielt“, aber seit über 15 s kommen keine Daten an (${menge} übertragen)`;
+  } else if (j.zustand === "TRANSITIONING") {
+    const s = Math.round((jetzt - lz.zustandSeit) / 1000);
+    klasse = s > 20 ? "warn" : ""; text = `Box puffert … (${s} s)`;
+  } else if (j.zustand === "PAUSED_PLAYBACK") { text = "Pausiert"; }
+  else if (laeuft && f.position == null) {
+    // Titel bereit, Box hat aber noch nicht "spielt" gemeldet -> normaler Startvorgang
+    const s = Math.round((jetzt - lz.zustandSeit) / 1000);
+    klasse = s > 30 ? "warn" : ""; text = s > 30 ? `Box startet nicht (${s} s) – Protokoll prüfen` : "Box startet …";
+  } else { klasse = laeuft ? "warn" : ""; text = j.zustand ? `Box meldet: ${j.zustand}` : "Warte auf Rückmeldung der Box …"; }
+  $("lzPunkt").className = "punkt " + klasse;
+  $("lzText").textContent = text;
+}
+
 function anzeigen() {
   $("version").textContent = "v" + zustand.version;
   // Ruhezeit-Hinweis
@@ -405,7 +455,8 @@ function anzeigen() {
   $("status").textContent = !box ? "Kein Lautsprecher gewählt"
     : j.zustand === "NICHT_ERREICHBAR" ? "⚠ Lautsprecher antwortet nicht"
     : laeuft && box.vorbereitung ? "⏳ Titel wird vorbereitet … (dauert ca. 10 s)"
-    : laeuft ? (box.pausiert ? "⏸ Pausiert" : "▶ Spielt") + (box.gestartet_von ? " · gestartet von " + box.gestartet_von : "")
+    : laeuft ? (box.pausiert ? "⏸ Pausiert" : (box.fortschritt || {}).position == null ? "▶ Startet" : "▶ Spielt")
+      + (box.gestartet_von ? " · gestartet von " + box.gestartet_von : "")
     : fremd ? (j.zustand === "PAUSED_PLAYBACK" ? "⏸ Pausiert" : "▶ Spielt") + " · andere Quelle (z. B. Raumfeld-App)"
     : "Keine Wiedergabe";
   // Titel: bei eigener Wiedergabe der Warteschlangen-Name, sonst die Angaben der Box
@@ -422,13 +473,18 @@ function anzeigen() {
     $("cover").hidden = !cover;
   }
   $("cover").onerror = () => { $("cover").hidden = true; };
-  // Fortschritt (nur wenn die Box Position und Dauer meldet)
-  const mitZeit = zeigeInfo && j.dauer > 0 && j.position != null;
-  $("fortschritt").hidden = !mitZeit;
-  if (mitZeit) {
-    $("balken").style.width = Math.min(100, (100 * j.position) / j.dauer) + "%";
-    $("zeiten").textContent = `${zeitText(j.position)} / ${zeitText(j.dauer)}`;
+  // Fortschritt: Werte der Box, wenn sie eine Laenge meldet (z. B. Raumfeld-App);
+  // bei eigenen Streams (Live-Stream ohne Laenge) die eigene Messung des Dienstes
+  const f = (box && box.fortschritt) || {};
+  let pos = null, dauer = null;
+  if (j.dauer > 0 && j.position != null) { pos = j.position; dauer = j.dauer; }
+  else if (laeuft && f.position != null) { pos = f.position; dauer = f.dauer || null; }
+  $("fortschritt").hidden = !(zeigeInfo && pos != null);
+  if (pos != null) {
+    $("balken").style.width = dauer ? Math.min(100, (100 * pos) / dauer) + "%" : "0%";
+    $("zeiten").textContent = dauer ? `${zeitText(pos)} / ${zeitText(dauer)}` : zeitText(pos);
   }
+  lebenszeichenZeigen(box, laeuft, fremd, j, f);
   $("boxMeldung").textContent = box ? box.meldung : "";
   // Tasten: bei eigener Wiedergabe alle, bei fremder Wiedergabe direkt an die Box
   for (const id of ["btnZurueck", "btnPause", "btnStop", "btnWeiter"]) $(id).disabled = !(laeuft || fremd);

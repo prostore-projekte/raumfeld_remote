@@ -123,6 +123,9 @@ def titel_liste_aufbauen(eingaben: list[str], cookie_args: list[str],
             eintrag = f"ytsearch1:{eintrag}"
 
         befehl = [ytdlp, "--flat-playlist", "--ignore-errors", "--no-warnings",
+                  # --encoding utf-8: sonst gibt yt-dlp unter Windows Sonderzeichen in der
+                  # Konsolen-Kodierung aus und Titel enthalten "?"-Ersatzzeichen
+                  "--encoding", "utf-8",
                   "--print", "%(id)s\t%(title)s", *cookie_args, *js_runtime_argumente()]
         if einzeln:
             befehl.append("--no-playlist")

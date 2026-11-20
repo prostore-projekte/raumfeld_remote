@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.14.1 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.15.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -184,6 +184,13 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   App-Warteschlange wirklich liefert; ob Next/Previous bei App-Wiedergabe funktionieren; ob das Cover (URL der Box,
   192.168.20.x) im Browser der Büro-PCs erreichbar ist.
 
+- 0.15.0 (Sascha: Fortschrittsbalken leer, „�“ im Titel, wünscht optisches Feedback): Kontrollanzeige aus
+  Box-Zustand + gesendeten Bytes (`StreamServer.gesendet`) + Box-Position; Dauer aus Titeldaten (`StreamServer.dauern`),
+  Position aus `Wiedergabe.fortschritt` (ab erstem PLAYING, Pausen abgezogen). CSS `[hidden]` erzwungen.
+  `--encoding utf-8` für yt-dlp (Ursache „�“ = Konsolen-Kodierung, **Annahme**). Getestet mit simulierter Box,
+  die den Stream wirklich abruft. **Ungeprüft:** ob Raumfeld den Stream gleichmäßig liest (sonst „keine Daten“-Warnung
+  trotz Wiedergabe, falls die Box stark puffert).
+
 ## 8. Offene Punkte / nächste Schritte
 1. **0.11.1 installieren** und prüfen: Protokoll „… Gerät(e) aus der Einzelplatz-Variante übernommen“ und Boxen
    im Netz 192.168.20.0/24 sichtbar? Sonst Geräte-URL der Box (Desktop-Programm/Einstellungen) unter „Gerät per URL
@@ -232,3 +239,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.13.0 | Port-Suche für bekannte Boxen (Port wechselt nach Neustart der Box) |
 | 20.11.2026 | 0.14.0 | „Was läuft gerade“ (GetPositionInfo/DIDL), Steuerung fremder Wiedergabe, Ruhezeit stoppt alles |
 | 20.11.2026 | 0.14.1 | Erster Titel früher vorbereitet, nächster parallel, Anzeige „wird vorbereitet“ |
+| 20.11.2026 | 0.15.0 | Kontrollanzeige (Box spielt/Daten fließen), Fortschritt eigener Streams, UTF-8-Titel |

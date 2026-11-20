@@ -731,6 +731,8 @@ class Zentrale:
                     "index": index,
                     "jetzt": box.jetzt,
                     "vorbereitung": bool(laeuft and box.wiedergabe.vorbereitung),
+                    # Eigene Messung: Position/Dauer/gesendete Bytes des aktuellen Titels
+                    "fortschritt": box.wiedergabe.fortschritt if laeuft else {},
                 })
             return {
                 "boxen": boxen,
