@@ -108,6 +108,39 @@
     <div class="abstand" id="favoriten"></div>
   </section>
 
+  <!-- ===== Spotify ===== -->
+  <section class="karte" id="spotifyKarte">
+    <h2>Spotify</h2>
+    <div class="leise" id="spotifyHinweis">Wird geladen …</div>
+    <div id="spotifyBedienung" hidden>
+      <div class="zeile">
+        <select id="spPlaylist" class="wachsen" aria-label="Spotify-Playlist"></select>
+        <button id="btnSpNeu" title="Playlists neu laden">↻</button>
+      </div>
+      <div class="abstand">
+        <label><input type="radio" name="spWeg" value="yt" checked>
+          Auf dem gewählten Raumfeld-Lautsprecher (Titel werden über YouTube gesucht)</label><br>
+        <label><input type="radio" name="spWeg" value="connect">
+          Spotify Connect (Spotify spielt selbst, Premium nötig):</label>
+        <select id="spGeraet" aria-label="Spotify-Gerät"></select>
+        <button id="btnSpGeraete" title="Geräte neu laden">↻</button>
+      </div>
+      <div class="zeile abstand">
+        <label><input type="checkbox" id="spZufall"> Zufällige Reihenfolge</label>
+        <span class="wachsen"></span>
+        <button id="btnSpAbspielen" class="haupt">▶ Abspielen</button>
+      </div>
+      <div class="zeile abstand transport" id="spConnectTasten" hidden>
+        <span class="leise">Spotify Connect:</span>
+        <button data-sp="voriger" title="Zurück">⏮</button>
+        <button data-sp="pause" title="Pause">⏸</button>
+        <button data-sp="weiter" title="Weiter">▶</button>
+        <button data-sp="naechster" title="Nächster Titel">⏭</button>
+      </div>
+      <div class="meldung" id="spMeldung"></div>
+    </div>
+  </section>
+
   <!-- ===== Warteschlange ===== -->
   <section class="karte">
     <h2>Warteschlange</h2>
@@ -151,6 +184,28 @@
         <button id="btnCookiesWeg">Entfernen</button>
       </div>
       <div class="meldung" id="cookieMeldung"></div>
+
+      <h2 class="abstand">Spotify-Konto (gilt für alle)</h2>
+      <p class="leise">Einmalig: auf <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>
+        eine App anlegen, als Redirect-URI <code>http://127.0.0.1:8888/callback</code> eintragen, Client-ID hier einfügen.
+        Status: <span id="spStatus">–</span></p>
+      <div class="zeile">
+        <input type="text" id="spClientId" class="wachsen" placeholder="Spotify-Client-ID">
+        <button id="btnSpClientId">Speichern</button>
+      </div>
+      <div class="zeile abstand">
+        <button id="btnSpAnmelden">Bei Spotify anmelden</button>
+        <button id="btnSpAbmelden">Spotify trennen</button>
+      </div>
+      <div id="spCodeBereich" class="abstand" hidden>
+        <p class="leise">Nach der Anmeldung zeigt der Browser „Seite nicht erreichbar“ (127.0.0.1:8888) – das ist richtig.
+          Die <b>komplette Adresse</b> aus der Adresszeile kopieren und hier einfügen:</p>
+        <div class="zeile">
+          <input type="text" id="spAdresse" class="wachsen" placeholder="http://127.0.0.1:8888/callback?code=…">
+          <button id="btnSpCode" class="haupt">Anmeldung abschließen</button>
+        </div>
+      </div>
+      <div class="meldung" id="spKontoMeldung"></div>
 
       <h2 class="abstand">Gerät per URL hinzufügen</h2>
       <div class="zeile">
@@ -419,6 +474,7 @@ async function einstellungenHolen() {
   $("bitrate").value = e.bitrate;
   $("regeln").innerHTML = "";
   e.ruhezeiten.forEach(regelZeile);
+  $("spClientId").value = e.spotify_client_id || "";
   favoriten = e.favoriten;
   favoritenAnzeigen();
 }
@@ -459,6 +515,106 @@ $("btnPasswort").onclick = async () => {
 };
 
 // ======================================================================
+// Spotify
+// ======================================================================
+let spStatus = null;
+
+async function spotifyStatusHolen() {
+  try {
+    spStatus = await api("/api/spotify");
+    $("spStatus").textContent = !spStatus.client_id ? "keine Client-ID"
+      : spStatus.angemeldet ? "verbunden" : "nicht angemeldet";
+    const bereit = spStatus.client_id && spStatus.angemeldet;
+    $("spotifyBedienung").hidden = !bereit;
+    $("spotifyHinweis").hidden = bereit;
+    $("spotifyHinweis").textContent = "Spotify ist noch nicht verbunden – unter ⚙ Einstellungen → „Spotify-Konto“ einrichten.";
+    if (bereit && !$("spPlaylist").options.length) { spPlaylistsHolen(); spGeraeteHolen(); }
+  } catch (e) { $("spotifyHinweis").textContent = e.message; }
+}
+
+/** Fuellt ein <select> mit Eintraegen {wert, text}. */
+function fuellen(select, eintraege, leerText) {
+  select.innerHTML = "";
+  for (const e of eintraege) {
+    const opt = document.createElement("option");
+    opt.value = e.wert; opt.textContent = e.text;
+    select.appendChild(opt);
+  }
+  if (!eintraege.length) select.innerHTML = `<option value="">${leerText}</option>`;
+}
+
+async function spPlaylistsHolen() {
+  try {
+    const { playlists } = await api("/api/spotify/playlists");
+    fuellen($("spPlaylist"), playlists.map((p) => ({ wert: p.id, text: `${p.name} (${p.anzahl})` })),
+            "Keine Playlists gefunden");
+  } catch (e) { melden("spMeldung", e.message, true); }
+}
+async function spGeraeteHolen() {
+  try {
+    const { geraete } = await api("/api/spotify/geraete");
+    fuellen($("spGeraet"), geraete.map((g) => ({ wert: g.id, text: g.name + (g.aktiv ? " (aktiv)" : "") })),
+            "Keine Spotify-Geräte aktiv");
+  } catch (e) { melden("spMeldung", e.message, true); }
+}
+$("btnSpNeu").onclick = spPlaylistsHolen;
+$("btnSpGeraete").onclick = spGeraeteHolen;
+
+const spWeg = () => document.querySelector("input[name=spWeg]:checked").value;
+for (const r of document.querySelectorAll("input[name=spWeg]"))
+  r.onchange = () => { $("spConnectTasten").hidden = spWeg() !== "connect"; };
+
+$("btnSpAbspielen").onclick = async () => {
+  melden("spMeldung", spWeg() === "yt" ? "Titel werden von Spotify gelesen …" : "Starte …");
+  $("btnSpAbspielen").disabled = true;
+  try {
+    const { meldung } = await api("/api/spotify/abspielen", {
+      weg: spWeg(), playlist: $("spPlaylist").value, box: boxId(),
+      geraet: $("spGeraet").value, zufall: $("spZufall").checked });
+    melden("spMeldung", meldung);
+    zustandHolen();
+  } catch (e) { melden("spMeldung", e.message, true); }
+  finally { $("btnSpAbspielen").disabled = false; }
+};
+for (const knopf of document.querySelectorAll("[data-sp]"))
+  knopf.onclick = async () => {
+    try { await api("/api/spotify/steuern", { geraet: $("spGeraet").value, aktion: knopf.dataset.sp }); }
+    catch (e) { melden("spMeldung", e.message, true); }
+  };
+
+// --- Konto (Einstellungen) ---
+$("btnSpClientId").onclick = async () => {
+  try {
+    melden("spKontoMeldung", (await api("/api/spotify/client_id", { client_id: $("spClientId").value })).meldung);
+    spotifyStatusHolen();
+  } catch (e) { melden("spKontoMeldung", e.message, true); }
+};
+$("btnSpAnmelden").onclick = async () => {
+  try {
+    const { url } = await api("/api/spotify/anmelden", {});
+    window.open(url, "_blank", "noopener");
+    $("spCodeBereich").hidden = false;
+    melden("spKontoMeldung", "Spotify-Anmeldung im neuen Tab geöffnet …");
+  } catch (e) { melden("spKontoMeldung", e.message, true); }
+};
+$("btnSpCode").onclick = async () => {
+  try {
+    melden("spKontoMeldung", (await api("/api/spotify/code", { adresse: $("spAdresse").value })).meldung);
+    $("spCodeBereich").hidden = true; $("spAdresse").value = "";
+    $("spPlaylist").innerHTML = "";
+    spotifyStatusHolen();
+  } catch (e) { melden("spKontoMeldung", e.message, true); }
+};
+$("btnSpAbmelden").onclick = async () => {
+  if (!confirm("Spotify-Konto für alle trennen?")) return;
+  try {
+    melden("spKontoMeldung", (await api("/api/spotify/abmelden", {})).meldung);
+    $("spPlaylist").innerHTML = "";
+    spotifyStatusHolen();
+  } catch (e) { melden("spKontoMeldung", e.message, true); }
+};
+
+// ======================================================================
 // Protokoll (nur abfragen, wenn aufgeklappt)
 // ======================================================================
 let protokollNummer = 0;
@@ -485,6 +641,7 @@ $("protokollBereich").ontoggle = () => {
 // ======================================================================
 zustandHolen();
 einstellungenHolen().catch((e) => melden("einstMeldung", e.message, true));
+spotifyStatusHolen();
 protokollHolen();
 setInterval(zustandHolen, 2000);
 setInterval(protokollHolen, 3000);

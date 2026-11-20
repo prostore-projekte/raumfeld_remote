@@ -6,7 +6,7 @@ daneben weiterhin das Desktop-Programm für Einzelplätze.
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.8.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.9.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
 
 ## Büro-Installation: zentraler Dienst mit Web-Oberfläche (empfohlen)
 Ein Dienst auf dem Server (z. B. Terminalserver, Windows Server 2025) übernimmt Suche, Wiedergabe, Warteschlange,
@@ -14,8 +14,9 @@ Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im
 **`http://<servername>:8080`** – nichts pro Benutzer installieren, geht auch vom Handy.
 
 **Installation (einmalig, als Administrator):**
-1. `RaumfeldRemote-Setup-x.y.z.exe` herunterladen: GitHub → **Actions** → **Windows-Build** → letzter grüner Lauf →
-   Artifact **RaumfeldRemote-Setup**.
+1. `RaumfeldRemote-Setup-x.y.z.exe` herunterladen: auf der Repository-Seite rechts unter **Releases** (neueste Version).
+   Wichtig: **nicht** den Quellcode-Download mit `installieren.bat`/`start.bat` verwenden – das ist die alte
+   Einzelplatz-Variante und richtet keinen Dienst ein.
 2. Installer ausführen. Er richtet ein:
    - Programm in `C:\Program Files\RaumfeldRemote` inkl. `yt-dlp`, `ffmpeg`, `deno`
    - Windows-Dienst **„Raumfeld Remote“** (startet automatisch mit Windows, Neustart bei Absturz)
@@ -44,7 +45,18 @@ Beim Deinstallieren bleibt dieser Ordner erhalten.
 **Passwort vergessen?** Als Administrator in `dienst.json` den Wert `passwort_hash` leeren (`""`), Dienst neu starten
 (`services.msc` → „Raumfeld Remote“) und am Server `http://localhost:8080` öffnen.
 
-**Noch nicht in der Web-Oberfläche:** Spotify (siehe Desktop-Programm).
+**Spotify in der Web-Oberfläche** (ein gemeinsames Konto für alle):
+1. Auf [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) eine App anlegen, als Redirect-URI
+   `http://127.0.0.1:8888/callback` eintragen, die **Client-ID** kopieren.
+2. Web-Oberfläche → ⚙ Einstellungen → **Spotify-Konto**: Client-ID speichern, **„Bei Spotify anmelden“**.
+3. Nach der Anmeldung zeigt der Browser „Seite nicht erreichbar“ (`127.0.0.1:8888`) – das ist richtig. Die komplette
+   Adresse aus der Adresszeile kopieren, einfügen, **„Anmeldung abschließen“**.
+4. Karte **Spotify**: Playlist wählen und abspielen –
+   - **auf dem Raumfeld-Lautsprecher**: Titelnamen kommen von Spotify, das Audio über die YouTube-Suche
+     (Spotify-Audio selbst ist kopiergeschützt); landet in der normalen Warteschlange
+   - **Spotify Connect**: Spotify spielt selbst auf einem Spotify-Gerät (nach Kenntnisstand Premium nötig)
+- Ruhezeiten gelten auch für Spotify (Connect wird pausiert).
+- Das Token liegt in `C:\ProgramData\RaumfeldRemote\spotify_token.json` (nur Admins/SYSTEM).
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
