@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.14.0 – 20.11.2026
+### Hinzugefügt
+- **Was läuft gerade:** Die Web-Oberfläche liest bei der Box aus, was spielt (Titel, Interpret, Album, Cover,
+  Position/Dauer) – auch bei Wiedergabe aus der Raumfeld-App. Abfrage alle 3 s, nur solange jemand die Seite offen hat.
+- Bei Wiedergabe aus anderer Quelle steuern ⏮ ⏯ ⏹ ⏭ direkt die Box (UPnP Previous/Pause/Play/Stop/Next)
+### Geändert
+- Ruhezeiten stoppen jetzt auch Wiedergaben, die nicht über den Dienst gestartet wurden
+
 ## 0.13.0 – 20.11.2026
 ### Hinzugefügt
 - **Port-Suche für bekannte Boxen:** Antwortet eine gemerkte oder fest eingetragene Box nicht mehr, sucht der Dienst

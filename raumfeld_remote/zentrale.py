@@ -37,8 +37,8 @@ from .stream_server import StreamServer
 from .tidal import PRAEFIX as TIDAL_PRAEFIX
 from .tidal import QUALITAETEN as TIDAL_QUALITAETEN
 from .tidal import Tidal
-from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
-                   port_neu_suchen, renderer_laden, renderer_suchen, setze_lautstaerke)
+from .upnp import (Renderer, avt, hole_lautstaerke, hole_wiedergabe_info, hole_zustand, lokale_ip_zu,
+                   netz_adressen, port_neu_suchen, renderer_laden, renderer_suchen, setze_lautstaerke)
 
 # ---------------------------------------------------------------------------
 # Einstellungen des Dienstes
@@ -219,6 +219,9 @@ class BoxZustand:
     gestartet_von: str = ""         # wer zuletzt abgespielt hat (IP-Adresse)
     pausiert: bool = False
     extras: dict = field(default_factory=dict)
+    # Was die Box selbst meldet (auch bei Wiedergabe aus der Raumfeld-App):
+    # zustand, titel, interpret, album, cover, position, dauer; leer = noch nicht abgefragt
+    jetzt: dict = field(default_factory=dict)
 
 
 class Zentrale:
@@ -235,6 +238,7 @@ class Zentrale:
         # Port-Neusuche: URL -> Zeitpunkt des letzten erfolglosen Versuchs (nicht bei jeder
         # Suche erneut ~30 s scannen, wenn eine Box z. B. ausgeschaltet ist)
         self._neusuche_fehlschlag: dict[str, float] = {}
+        self._letzte_anzeige_anfrage = 0.0   # Zeitpunkt der letzten Abfrage durch die Web-Oberflaeche
         # Spotify: ein gemeinsames Konto fuer alle (Token im Datenordner)
         self.spotify = Spotify(konfig_ordner() / "spotify_token.json", self.einst["spotify_client_id"])
         self._spotify_anmeldung: tuple[str, str] | None = None   # (verifier, state) waehrend der Anmeldung
@@ -251,6 +255,7 @@ class Zentrale:
         self.suchen_im_hintergrund()
         threading.Thread(target=self._ruhezeit_waechter, daemon=True).start()
         threading.Thread(target=self._ytdlp_aktualisieren_schleife, daemon=True).start()
+        threading.Thread(target=self._anzeige_waechter, daemon=True).start()
 
     # ------------------------------------------------------------ Lautsprecher
     def suchen_im_hintergrund(self) -> None:
@@ -622,11 +627,20 @@ class Zentrale:
         """Transport: pause, weiter, stop, naechster, voriger, springe."""
         box = self._box(location)
         w = box.wiedergabe
-        if w is None or not w.laeuft:
-            raise ValueError("Auf diesem Lautsprecher läuft gerade nichts.")
         if aktion in ("naechster", "voriger", "springe", "weiter") and \
                 aktive_ruhezeit(self.einst["ruhezeiten"]):
             raise ValueError("Ruhezeit – Wiedergabe ist gerade gesperrt.")
+        if w is None or not w.laeuft:
+            # Keine eigene Wiedergabe: Befehl direkt an die Box geben (z. B. Wiedergabe
+            # aus der Raumfeld-App). Ob die Box Next/Previous unterstuetzt, haengt von
+            # ihrer Quelle ab - Fehler kommen als Meldung zurueck.
+            befehle = {"pause": ("Pause", {}), "weiter": ("Play", {"Speed": 1}), "stop": ("Stop", {}),
+                       "naechster": ("Next", {}), "voriger": ("Previous", {})}
+            if aktion not in befehle:
+                raise ValueError("Auf diesem Lautsprecher läuft gerade nichts aus der Warteschlange.")
+            name, argumente = befehle[aktion]
+            avt(box.renderer, name, **argumente)
+            return
         if aktion == "pause":
             w.pause()
             box.pausiert = True
@@ -660,8 +674,35 @@ class Zentrale:
         return anzahl
 
     # ------------------------------------------------------------ Zustand
+    def _anzeige_waechter(self) -> None:
+        """
+        Fragt alle 3 Sekunden bei jeder Box ab, was gerade laeuft (Titel, Interpret, Cover,
+        Fortschritt) - auch wenn die Wiedergabe aus der Raumfeld-App kommt. Nur, solange
+        jemand die Web-Oberflaeche offen hat (letzte Zustandsabfrage < 30 s), damit die
+        Boxen ueber das VPN nicht staendig abgefragt werden.
+        """
+        def abfragen(box: BoxZustand) -> None:
+            try:
+                box.jetzt = hole_wiedergabe_info(box.renderer)
+            except (RuntimeError, OSError):
+                box.jetzt = {"zustand": "NICHT_ERREICHBAR"}
+
+        while True:
+            time.sleep(3)
+            if time.time() - self._letzte_anzeige_anfrage > 30:
+                continue
+            with self._sperre:
+                boxen = list(self.boxen.values())
+            # Parallel, damit eine haengende Box die anderen nicht aufhaelt
+            threads = [threading.Thread(target=abfragen, args=(b,), daemon=True) for b in boxen]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=12)
+
     def zustand(self) -> dict:
         """Gesamtzustand fuer die Web-Oberflaeche (wird alle paar Sekunden abgefragt)."""
+        self._letzte_anzeige_anfrage = time.time()   # jemand schaut zu -> Anzeige-Waechter aktiv
         regel = aktive_ruhezeit(self.einst["ruhezeiten"])
         with self._sperre:
             boxen = []
@@ -680,6 +721,7 @@ class Zentrale:
                     "gestartet_von": box.gestartet_von,
                     "warteschlange": titel_liste if laeuft else [],
                     "index": index,
+                    "jetzt": box.jetzt,
                 })
             return {
                 "boxen": boxen,
@@ -767,6 +809,17 @@ class Zentrale:
                 self.spotify_geraet = ""
             if anzahl:
                 protokoll(f"Ruhezeit {ruhezeit_text(regel)}: {anzahl} Wiedergabe(n) gestoppt.")
+            # Auch Wiedergaben stoppen, die nicht ueber den Dienst gestartet wurden
+            # (z. B. Raumfeld-App) - sonst liesse sich die Ruhezeit so umgehen
+            with self._sperre:
+                fremde = [b for b in self.boxen.values() if not (b.wiedergabe and b.wiedergabe.laeuft)]
+            for box in fremde:
+                try:
+                    if hole_zustand(box.renderer) == "PLAYING":
+                        avt(box.renderer, "Stop")
+                        protokoll(f"Ruhezeit: Wiedergabe auf {box.renderer.name} (andere Quelle) gestoppt.")
+                except (RuntimeError, OSError):
+                    pass   # Box nicht erreichbar -> beim naechsten Durchlauf erneut
 
     def _ruhezeit_waechter(self) -> None:
         """Prueft alle 30 Sekunden, ob eine Ruhezeit begonnen hat."""

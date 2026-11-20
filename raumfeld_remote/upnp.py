@@ -387,7 +387,8 @@ def avt(renderer: Renderer, aktion: str, **argumente) -> dict[str, str]:
     Befehle und Fehler werden protokolliert; die staendige Zustandsabfrage
     (GetTransportInfo) nicht, damit das Protokoll lesbar bleibt.
     """
-    leise = aktion == "GetTransportInfo"
+    # Staendige Abfragen (Zustand, Titelanzeige) nicht protokollieren
+    leise = aktion in ("GetTransportInfo", "GetPositionInfo")
     if not leise:
         # Nur kurze Werte zeigen (Metadaten-XML waere zu lang)
         kurz = {k: v for k, v in argumente.items() if k != "CurrentURIMetaData"}
@@ -424,6 +425,65 @@ def hole_lautstaerke(renderer: Renderer) -> int:
     antwort = soap_aufruf(renderer.rendering_url, SERVICE_RENDERING, "GetVolume",
                           {"InstanceID": 0, "Channel": "Master"})
     return int(antwort.get("CurrentVolume", "0") or 0)
+
+
+def _zeit_in_sekunden(text: str) -> int | None:
+    """'0:03:25' oder '00:03:25.000' -> 205; 'NOT_IMPLEMENTED'/leer -> None."""
+    try:
+        teile = [float(t) for t in text.strip().split(":")]
+    except ValueError:
+        return None
+    if len(teile) != 3:
+        return None
+    return int(teile[0] * 3600 + teile[1] * 60 + teile[2])
+
+
+def didl_lesen(didl: str) -> dict[str, str]:
+    """
+    Liest Titel, Interpret, Album und Cover aus DIDL-Lite-Metadaten.
+    Raumfeld/Internetradio liefern den laufenden Titel teils in einem eigenen Feld
+    (z. B. "streamContent") - jedes Element mit diesem Namensende wird mitgenommen
+    (Annahme, nicht an einer echten Box geprueft).
+    """
+    werte = {"titel": "", "interpret": "", "album": "", "cover": "", "sender": ""}
+    if not didl or not didl.strip().startswith("<"):
+        return werte
+    try:
+        wurzel = ET.fromstring(didl)
+    except ET.ParseError:
+        return werte
+    for element in wurzel.iter():
+        name = element.tag.rsplit("}", 1)[-1]          # Namensraum abschneiden
+        text = (element.text or "").strip()
+        if not text:
+            continue
+        if name == "title" and not werte["titel"]:
+            werte["titel"] = text
+        elif name in ("artist", "creator") and not werte["interpret"]:
+            werte["interpret"] = text
+        elif name == "album" and not werte["album"]:
+            werte["album"] = text
+        elif name == "albumArtURI" and not werte["cover"]:
+            werte["cover"] = text
+        elif name.lower().endswith("streamcontent") and text:
+            werte["sender"] = werte["titel"]   # bei Radio ist "title" meist der Sendername
+            werte["titel"] = text
+    return werte
+
+
+def hole_wiedergabe_info(renderer: Renderer) -> dict:
+    """
+    Was laeuft gerade auf der Box - egal, wer es gestartet hat (auch die Raumfeld-App)?
+    Rueckgabe: zustand, titel, interpret, album, cover, position, dauer (Sekunden oder None), uri.
+    """
+    zustand = avt(renderer, "GetTransportInfo").get("CurrentTransportState", "")
+    pos = avt(renderer, "GetPositionInfo")
+    info = didl_lesen(pos.get("TrackMetaData", ""))
+    info.update(zustand=zustand,
+                position=_zeit_in_sekunden(pos.get("RelTime", "")),
+                dauer=_zeit_in_sekunden(pos.get("TrackDuration", "")),
+                uri=pos.get("TrackURI", ""))
+    return info
 
 
 def baue_didl(titel: str, stream_url: str) -> str:
