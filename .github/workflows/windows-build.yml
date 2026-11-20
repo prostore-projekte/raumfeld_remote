@@ -93,3 +93,93 @@ jobs:
         with:
           name: RaumfeldRemote-windows
           path: paket/
+
+  # -------------------------------------------------------------------------
+  # Zentraler Dienst (Web-Oberflaeche) + Installer (Inno Setup)
+  # Ergebnis: Artifact "RaumfeldRemote-Setup" mit RaumfeldRemote-Setup-x.y.z.exe
+  # Der Installer wird auf dem Runner wirklich installiert, geprueft und
+  # wieder deinstalliert.
+  # -------------------------------------------------------------------------
+  dienst-installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhaengigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dienst.txt pyinstaller pyflakes
+
+      - name: Pruefen (pyflakes, Import)
+        run: |
+          python -m pyflakes raumfeld_remote dienst_start.py
+          python -c "import raumfeld_remote.web, raumfeld_remote.zentrale, raumfeld_remote.dienst"
+
+      - name: Dienst-EXE bauen (PyInstaller, Ordner-Variante)
+        run: pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" dienst_start.py
+
+      - name: Paket zusammenstellen (Dienst, WinSW, yt-dlp, ffmpeg, deno)
+        run: |
+          $p = "paket_dienst"
+          New-Item -ItemType Directory -Force "$p/tools" | Out-Null
+          Copy-Item dist/RaumfeldRemoteDienst/* $p -Recurse
+          Copy-Item installer/RaumfeldRemote-Dienst.xml $p
+          Copy-Item README.md, CHANGELOG.md $p
+          # WinSW: macht aus der EXE einen Windows-Dienst
+          Invoke-WebRequest https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe -OutFile "$p/RaumfeldRemote-Dienst.exe"
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile "$p/tools/yt-dlp.exe"
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
+          Get-ChildItem ffmpeg_tmp -Recurse -Include ffmpeg.exe, ffprobe.exe | Copy-Item -Destination "$p/tools"
+          Invoke-WebRequest https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip -OutFile deno.zip
+          Expand-Archive deno.zip -DestinationPath "$p/tools" -Force
+          Get-ChildItem $p -File | Select-Object Name, Length | Out-Host
+
+      - name: Installer bauen (Inno Setup)
+        run: |
+          choco install innosetup -y --no-progress | Out-Null
+          $version = python -c "import raumfeld_remote; print(raumfeld_remote.__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\raumfeld_remote.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC fehlgeschlagen" }
+
+      - name: Installer testen (installieren, Dienst, Web, Firewall, deinstallieren)
+        run: |
+          $setup = Get-ChildItem dist_installer\*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=install.log' -Wait
+          # Auf die Web-Oberflaeche warten (Dienst startet im Hintergrund)
+          $antwort = $null
+          for ($i = 0; $i -lt 30 -and -not $antwort; $i++) {
+            Start-Sleep -Seconds 2
+            try { $antwort = Invoke-WebRequest http://localhost:8080/einrichten -UseBasicParsing } catch { }
+          }
+          if (-not $antwort -or $antwort.Content -notmatch 'Passwort') {
+            Get-Content install.log -Tail 40
+            Get-ChildItem C:\ProgramData\RaumfeldRemote\logs -File -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 40 }
+            throw "Web-Oberflaeche antwortet nicht"
+          }
+          $dienst = Get-Service RaumfeldRemote
+          Write-Host "Dienst: $($dienst.Status), Starttyp: $($dienst.StartType)"
+          if ($dienst.Status -ne 'Running') { throw "Dienst laeuft nicht" }
+          netsh advfirewall firewall show rule name="Raumfeld Remote Web" | Select-String "8080" | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "Firewall-Regel fehlt" }
+          foreach ($t in 'yt-dlp.exe','ffmpeg.exe','deno.exe') {
+            if (-not (Test-Path "C:\Program Files\RaumfeldRemote\tools\$t")) { throw "$t fehlt" }
+          }
+          Get-Content C:\ProgramData\RaumfeldRemote\stream.log -Tail 10
+          # Deinstallieren und pruefen, dass der Dienst weg ist
+          Start-Process "C:\Program Files\RaumfeldRemote\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait
+          Start-Sleep -Seconds 5
+          if (Get-Service RaumfeldRemote -ErrorAction SilentlyContinue) { throw "Dienst nach Deinstallation noch vorhanden" }
+          Write-Host "Installer-Test OK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RaumfeldRemote-Setup
+          path: dist_installer/*.exe

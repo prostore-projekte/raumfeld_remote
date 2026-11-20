@@ -1,10 +1,50 @@
 # Raumfeld Remote
 
-Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) unter **Windows 11** steuern – ohne Raumfeld-App.
+Raumfeld-Lautsprecher (z. B. Teufel Stereo Cubes) steuern – ohne Raumfeld-App.
+Für das Büro gibt es einen **zentralen Dienst mit Web-Oberfläche** (Windows Server, alle bedienen per Browser);
+daneben weiterhin das Desktop-Programm für Einzelplätze.
 Basiert auf dem Linux-Skript `raumcast.py`: Der PC startet einen kleinen Stream-Server, `yt-dlp` holt das
 Audio von YouTube, `ffmpeg` wandelt es live in MP3 um, und der Lautsprecher spielt den Stream per UPnP ab.
 
-**Version:** 0.7.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+**Version:** 0.8.0 · Änderungen siehe [CHANGELOG.md](CHANGELOG.md)
+
+## Büro-Installation: zentraler Dienst mit Web-Oberfläche (empfohlen)
+Ein Dienst auf dem Server (z. B. Terminalserver, Windows Server 2025) übernimmt Suche, Wiedergabe, Warteschlange,
+Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im Browser:
+**`http://<servername>:8080`** – nichts pro Benutzer installieren, geht auch vom Handy.
+
+**Installation (einmalig, als Administrator):**
+1. `RaumfeldRemote-Setup-x.y.z.exe` herunterladen: GitHub → **Actions** → **Windows-Build** → letzter grüner Lauf →
+   Artifact **RaumfeldRemote-Setup**.
+2. Installer ausführen. Er richtet ein:
+   - Programm in `C:\Program Files\RaumfeldRemote` inkl. `yt-dlp`, `ffmpeg`, `deno`
+   - Windows-Dienst **„Raumfeld Remote“** (startet automatisch mit Windows, Neustart bei Absturz)
+   - Firewall-Regeln: TCP **8080** (Web-Oberfläche) und TCP **8765** (Stream an die Lautsprecher), Profile Domäne/Privat
+   - Datenordner `C:\ProgramData\RaumfeldRemote` (nur SYSTEM und Administratoren haben Zugriff)
+   - Startmenü-Eintrag „Raumfeld Remote“ für alle Benutzer
+3. Am Ende öffnet sich `http://localhost:8080` – dort das **Zugangspasswort** festlegen. Das geht aus Sicherheitsgründen
+   nur direkt am Server.
+4. In der Web-Oberfläche unter **⚙ Einstellungen**: weitere Netze (z. B. `192.168.20.0/24`), Ruhezeiten, ggf. YouTube-Anmeldung.
+
+Lautlos installieren (z. B. Softwareverteilung): `RaumfeldRemote-Setup-x.y.z.exe /VERYSILENT /SUPPRESSMSGBOXES`
+
+**Funktionen der Web-Oberfläche:**
+- Anmeldung mit einem gemeinsamen Passwort (30 Tage angemeldet bleiben; Sperre nach 5 Fehlversuchen für 10 Minuten)
+- Lautsprecher wählen, Lautstärke, Abspielen (Link, Playlist, Suchbegriff), ⏮ ⏯ ⏹ ⏭, Favoriten
+- **Alle sehen dasselbe**: pro Lautsprecher genau eine Wiedergabe und Warteschlange (Klick auf einen Titel springt dorthin);
+  mehrere Lautsprecher können gleichzeitig Verschiedenes spielen
+- **Ruhezeiten**: z. B. Mo–Fr 21:00–07:00 – laufende Musik wird automatisch gestoppt, Abspielen ist gesperrt
+- Einstellungen gelten für alle; Protokoll zum Aufklappen
+- `yt-dlp` wird beim Start des Dienstes und danach täglich automatisch aktualisiert
+
+**Daten und Protokolle:** `C:\ProgramData\RaumfeldRemote` – `dienst.json` (Einstellungen, Passwort-Hash),
+`cookies.txt` (YouTube-Anmeldung), `stream.log` (Protokoll), `logs\` (Ausgabe des Dienstes).
+Beim Deinstallieren bleibt dieser Ordner erhalten.
+
+**Passwort vergessen?** Als Administrator in `dienst.json` den Wert `passwort_hash` leeren (`""`), Dienst neu starten
+(`services.msc` → „Raumfeld Remote“) und am Server `http://localhost:8080` öffnen.
+
+**Noch nicht in der Web-Oberfläche:** Spotify (siehe Desktop-Programm).
 
 ## Projektstand
 Frühe Version, **noch nicht unter Windows oder mit echter Hardware getestet** (Details in [HANDOVER.md](HANDOVER.md)).
@@ -146,6 +186,13 @@ raumfeld_remote/
   player.py         Warteschlange, Weiter/Zurück/Pause/Stop
   spotify.py        OAuth (PKCE) und Web-API-Aufrufe
   einstellungen.py  JSON-Einstellungen: gemeinsam (%PROGRAMDATA%) und pro Benutzer (%APPDATA%)
+  protokoll.py      Protokoll (Datei + Live-Anzeige)
+  zentrale.py       Zentraler Dienst: Lautsprecher, eine Wiedergabe pro Box, Ruhezeiten, Einstellungen
+  web.py            Web-Oberfläche/API (Flask), Passwort, Anmeldung
+  dienst.py         Startpunkt des Dienstes (waitress)
+  web/              HTML-Seiten (Hauptseite, Anmeldung, Ersteinrichtung)
+installer/          Inno-Setup-Skript und WinSW-Konfiguration für den Windows-Dienst
+dienst_start.py     Startdatei für RaumfeldRemoteDienst.exe
   gui.py            Oberfläche (customtkinter)
 start.pyw / start.bat / installieren.bat / build_exe.bat
 ```

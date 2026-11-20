@@ -7,3 +7,5 @@ dist/
 tools/
 cookies.txt
 spotify_token.json
+paket_dienst/
+dist_installer/

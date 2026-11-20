@@ -22,6 +22,12 @@ from pathlib import Path
 
 def konfig_ordner() -> Path:
     """Liefert den Ordner fuer Konfigurationsdateien und legt ihn bei Bedarf an."""
+    # Zentraler Dienst (Web-Oberflaeche): eigener Datenordner, z. B. C:\ProgramData\RaumfeldRemote
+    eigener = os.environ.get("RAUMFELD_REMOTE_DATEN")
+    if eigener:
+        ordner = Path(eigener)
+        ordner.mkdir(parents=True, exist_ok=True)
+        return ordner
     appdata = os.environ.get("APPDATA")  # nur unter Windows gesetzt
     if appdata:
         ordner = Path(appdata) / "RaumfeldRemote"

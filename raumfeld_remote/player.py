@@ -26,8 +26,11 @@ class Wiedergabe:
     def __init__(self, renderer: Renderer, server: StreamServer, eigene_ip: str,
                  bei_titel: Callable[[int, int, str], None],
                  bei_meldung: Callable[[str], None],
-                 bei_ende: Callable[[], None]) -> None:
+                 bei_ende: Callable[[], None], praefix: str = "") -> None:
         self.renderer = renderer
+        # Praefix fuer die Stream-Nummern: mehrere Wiedergaben (eine pro Lautsprecher)
+        # teilen sich einen Stream-Server und duerfen sich nicht ueberschreiben.
+        self.praefix = praefix
         self.server = server
         self.eigene_ip = eigene_ip
         self.bei_titel = bei_titel      # (index, gesamt, titel)
@@ -51,10 +54,33 @@ class Wiedergabe:
         self._ende = False
         self._sprung = None
         self._wecker.clear()
-        # Dem Server mitteilen, welche Nummer zu welcher Quelle gehoert
-        self.server.quellen = {str(i): t.quelle for i, t in enumerate(self._titel)}
+        # Dem Server mitteilen, welche Nummer zu welcher Quelle gehoert.
+        # Nur die eigenen Eintraege (mit Praefix) ersetzen, andere Wiedergaben behalten ihre.
+        if self.praefix:
+            for alt in [k for k in self.server.quellen if k.startswith(self.praefix)]:
+                del self.server.quellen[alt]
+            self.server.quellen.update({f"{self.praefix}{i}": t.quelle
+                                        for i, t in enumerate(self._titel)})
+        else:
+            self.server.quellen = {str(i): t.quelle for i, t in enumerate(self._titel)}
         self._thread = threading.Thread(target=self._lauf, daemon=True)
         self._thread.start()
+
+    @property
+    def warteschlange(self) -> tuple[list[str], int]:
+        """Anzeigenamen aller Titel und Index des aktuellen Titels (fuer die Web-Oberflaeche)."""
+        return [t.titel for t in self._titel], self._index
+
+    @property
+    def laeuft(self) -> bool:
+        """True, solange der Wiedergabe-Thread arbeitet."""
+        return bool(self._thread and self._thread.is_alive() and not self._ende)
+
+    def springe_zu(self, index: int) -> None:
+        """Springt direkt zu einem Titel der Warteschlange (Klick in der Liste)."""
+        if 0 <= index < len(self._titel):
+            self._sprung = index
+            self._wecker.set()
 
     def naechster(self) -> None:
         self._sprung = self._index + 1
@@ -91,7 +117,7 @@ class Wiedergabe:
             self._sprung = None
             self.bei_titel(self._index, len(self._titel), titel.titel)
 
-            url = f"http://{self.eigene_ip}:{self.server.port}/stream/{self._index}.mp3"
+            url = f"http://{self.eigene_ip}:{self.server.port}/stream/{self.praefix}{self._index}.mp3"
             try:
                 try:
                     avt(self.renderer, "Stop")   # alte Wiedergabe beenden
@@ -100,7 +126,7 @@ class Wiedergabe:
                 avt(self.renderer, "SetAVTransportURI", CurrentURI=url,
                     CurrentURIMetaData=baue_didl(titel.titel, url))
                 avt(self.renderer, "Play", Speed=1)
-                self._abruf_pruefen(str(self._index), url)
+                self._abruf_pruefen(f"{self.praefix}{self._index}", url)
             except (RuntimeError, OSError) as exc:
                 self.bei_meldung(f"Fehler bei „{titel.titel}“: {exc}")
                 self._index += 1

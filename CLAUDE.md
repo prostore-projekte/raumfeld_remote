@@ -19,6 +19,10 @@ per UPnP; Audio über `yt-dlp → ffmpeg → MP3`-Stream. Details/Historie: `HAN
 | `raumfeld_remote/einstellungen.py` | JSON in `%APPDATA%/RaumfeldRemote/` |
 | `raumfeld_remote/gui.py` | Oberfläche; GUI-Updates nur über Queue (`_ui` / `_ui_pumpe`) |
 | `raumfeld_remote/protokoll.py` | `protokoll()` → `stream.log` + Live-Protokoll in der GUI (`abonnieren`) |
+| `raumfeld_remote/zentrale.py` | **Dienst**: Lautsprecher, eine `Wiedergabe` pro Box, Ruhezeiten, `dienst.json` |
+| `raumfeld_remote/web.py` + `web/*.html` | **Dienst**: Flask-API, Passwort/Login, Web-Oberfläche (Vanilla JS) |
+| `raumfeld_remote/dienst.py` | **Dienst**: Startpunkt (waitress), setzt Datenordner vor den Imports |
+| `installer/` | Inno-Setup-Skript, WinSW-XML (Windows-Dienst) |
 | `raumfeld_remote/__init__.py` | `__version__` |
 
 ## Code-Regeln
@@ -34,7 +38,9 @@ python3 -m py_compile raumfeld_remote/*.py && echo OK
 python3 -m pyflakes raumfeld_remote 2>&1 | head -20
 ```
 - Keine kompletten Logs in den Kontext; `| tail -20` oder `| grep -iE "error|fail"`.
-- GUI lässt sich in der Cloud-Sandbox nicht sinnvoll testen (kein Windows/keine Hardware) – nicht versuchen.
+- Desktop-GUI (tkinter) lässt sich in der Sandbox nicht testen. Der **Dienst** schon: Flask-Testclient,
+  `python -m raumfeld_remote.dienst --port 8093` mit `RAUMFELD_REMOTE_DATEN=<tmp>` + Playwright-Screenshot.
+- Python-Hilfsskripte für Edits: Suchtexte vorher auf Eindeutigkeit prüfen (Abbruch mittendrin = halber Stand).
 
 ## Pflicht nach jedem Arbeitsschritt
 1. `HANDOVER.md` aktualisieren (Stand/Datum, Version, Teststand, offene Punkte) – nur betroffene Abschnitte editieren.
@@ -46,5 +52,6 @@ python3 -m pyflakes raumfeld_remote 2>&1 | head -20
    (bzw. bestehenden PR des Branches aktualisieren).
 
 ## Antwortstil
+- Nutzer heißt **Sascha** – **duzen**.
 - Deutsch, knapp. Unsicheres klar kennzeichnen, nichts erfinden („Dazu habe ich keine gesicherten Informationen“).
 - Keine Wiederholung bereits geklärter Fakten aus `HANDOVER.md`.
