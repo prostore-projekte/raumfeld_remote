@@ -12,6 +12,7 @@ von yt-dlp und ffmpeg landen im Protokoll %APPDATA%/RaumfeldRemote/stream.log.
 from __future__ import annotations
 
 import http.server
+import json
 import os
 import socketserver
 import subprocess
@@ -103,6 +104,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
                     break
                 self.wfile.write(block)
                 gesendet += len(block)
+                # Fuer die Kontrollanzeige: gesendete Bytes je Titelnummer (fliessen Daten?)
+                self.server.gesendet[name] = self.server.gesendet.get(name, 0) + len(block)  # type: ignore[attr-defined]
         except (ConnectionError, OSError):
             # Lautsprecher hat die Verbindung beendet (Stop, naechster Titel ...)
             # Unter Windows ist das meist ConnectionAbortedError/ResetError.
@@ -195,6 +198,10 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         self.quellen: dict[str, str] = {}
         # Nummer (als Text) -> Anzahl GET-Anfragen (zeigt, ob der Lautsprecher den Stream abruft)
         self.abrufe: dict[str, int] = {}
+        # Nummer -> insgesamt an den Lautsprecher gesendete Bytes (Kontrollanzeige "Daten fliessen")
+        self.gesendet: dict[str, int] = {}
+        # Quelle -> Laenge des Titels in Sekunden (aus den vorbereiteten Titeldaten), fuer den Fortschritt
+        self.dauern: dict[str, int] = {}
         # Vorbereitete Titeldaten (yt-dlp-JSON): Quelle -> (Dateipfad, Zeitpunkt)
         self._infos: dict[str, tuple[Path, float]] = {}
         self._in_arbeit: dict[str, threading.Event] = {}   # laufende Vorbereitungen
@@ -251,7 +258,7 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
             self._info_ordner.mkdir(parents=True, exist_ok=True)
             self._alte_infos_loeschen()
             ergebnis = subprocess.run(
-                [ytdlp_exe, "--quiet", "--no-warnings", "--no-playlist", "-j",
+                [ytdlp_exe, "--quiet", "--no-warnings", "--no-playlist", "-j", "--encoding", "utf-8",
                  *self.cookie_args, *js_runtime_argumente(), "-f", "bestaudio/best", quelle],
                 capture_output=True, timeout=timeout, creationflags=KEIN_FENSTER)
             json_text = ergebnis.stdout.strip().splitlines()[0] if ergebnis.stdout.strip() else b""
@@ -262,6 +269,13 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
                 return False
             datei = self._info_ordner / f"{abs(hash(quelle))}_{int(time.time())}.json"
             datei.write_bytes(json_text)
+            # Laenge merken (fuer den Fortschrittsbalken); fehlt bei Livestreams
+            try:
+                dauer = json.loads(json_text).get("duration")
+                if dauer:
+                    self.dauern[quelle] = int(dauer)
+            except ValueError:
+                pass
             with self._info_sperre:
                 self._infos[quelle] = (datei, time.time())
             protokoll(f"  Titel vorbereitet in {time.monotonic() - beginn:.1f} s")
