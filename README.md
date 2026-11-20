@@ -14,7 +14,10 @@ Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im
 **`http://<servername>:8080`** – nichts pro Benutzer installieren, geht auch vom Handy.
 
 **Installation (einmalig, als Administrator):**
-1. `RaumfeldRemote-Setup-x.y.z.exe` herunterladen: auf der Repository-Seite rechts unter **Releases** (neueste Version).
+1. `RaumfeldRemote-Setup-x.y.z.exe` herunterladen – direkt hier:
+   **<https://github.com/prostore-projekte/raumfeld_remote/releases/latest>** → unter **Assets** die Setup-EXE.
+   (Auf der Repository-Startseite steht derselbe Link rechts unter **Releases**.) Bauen musst du nichts – die
+   Setup-EXE entsteht automatisch bei jedem Stand auf `main`, siehe „Setup-EXE selbst bauen“ weiter unten.
    Wichtig: **nicht** den Quellcode-Download mit `installieren.bat`/`start.bat` verwenden – das ist die alte
    Einzelplatz-Variante und richtet keinen Dienst ein.
 2. Installer ausführen. Er richtet ein:
@@ -28,6 +31,28 @@ Ruhezeiten und alle Einstellungen. Alle Kolleginnen und Kollegen bedienen ihn im
 4. In der Web-Oberfläche unter **⚙ Einstellungen**: weitere Netze (z. B. `192.168.20.0/24`), Ruhezeiten, ggf. YouTube-Anmeldung.
 
 Lautlos installieren (z. B. Softwareverteilung): `RaumfeldRemote-Setup-x.y.z.exe /VERYSILENT /SUPPRESSMSGBOXES`
+
+### Setup-EXE selbst bauen
+Normalerweise nicht nötig. Die Setup-EXE wird von GitHub Actions (Workflow **Windows-Build**, Job `dienst-installer`,
+Datei `.github/workflows/windows-build.yml`) auf einem Windows-Rechner gebaut, dort probehalber installiert, geprüft
+und wieder deinstalliert. Wo du sie danach findest:
+- **Stand auf `main`** → Release `vX.Y.Z` unter **Releases** (siehe oben).
+- **Jeder andere Lauf** (z. B. ein Pull Request) → Reiter **Actions** → Lauf anklicken → unten bei **Artifacts**
+  die Datei **RaumfeldRemote-Setup** herunterladen (Zip mit der Setup-EXE, Anmeldung bei GitHub nötig).
+- **Neu bauen ohne Code-Änderung**: **Actions** → **Windows-Build** → **Run workflow**.
+
+Lokal unter Windows bauen (dieselben Schritte wie im Workflow; lokal so noch nicht ausprobiert):
+1. Python 3.12 und [Inno Setup 6](https://jrsoftware.org/isinfo.php) installieren.
+2. Im Projektordner: `pip install -r requirements-dienst.txt pyinstaller`
+3. Dienst bauen:
+   `pyinstaller --noconfirm --onedir --name RaumfeldRemoteDienst --add-data "raumfeld_remote/web;raumfeld_remote/web" dienst_start.py`
+4. Ordner `paket_dienst` anlegen und füllen:
+   - Inhalt von `dist\RaumfeldRemoteDienst\` hineinkopieren, dazu `installer\RaumfeldRemote-Dienst.xml`, `README.md`, `CHANGELOG.md`
+   - [WinSW-x64.exe v2.12.0](https://github.com/winsw/winsw/releases/tag/v2.12.0) als `paket_dienst\RaumfeldRemote-Dienst.exe` speichern
+   - In `paket_dienst\tools\`: `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe`
+5. Installer erzeugen (Version wie in `raumfeld_remote/__init__.py`):
+   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.9.2 installer\raumfeld_remote.iss`
+6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.9.2.exe`
 
 **Funktionen der Web-Oberfläche:**
 - Anmeldung mit einem gemeinsamen Passwort (30 Tage angemeldet bleiben; Sperre nach 5 Fehlversuchen für 10 Minuten)
