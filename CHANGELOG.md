@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.14.1 – 20.11.2026
+### Geändert
+- Erster Titel startet früher: Steht er im Link (`watch?v=…`), wird er schon während des Einlesens der Playlist
+  vorbereitet; der nächste Titel wird jeweils parallel zum aktuellen vorbereitet (auch ⏭ geht dadurch schneller)
+- Anzeige „⏳ Titel wird vorbereitet …“ statt „Spielt“, solange der Titel noch nicht bereit ist
+
 ## 0.14.0 – 20.11.2026
 ### Hinzugefügt
 - **Was läuft gerade:** Die Web-Oberfläche liest bei der Box aus, was spielt (Titel, Interpret, Album, Cover,

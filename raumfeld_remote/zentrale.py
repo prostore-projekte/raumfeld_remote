@@ -19,6 +19,7 @@ import datetime as dt
 import json
 import os
 import random
+import re
 import secrets
 import subprocess
 import sys
@@ -447,6 +448,13 @@ class Zentrale:
         # Grosse Playlists: erst den Anfang laden und sofort starten, den Rest im Hintergrund
         # nachladen (das vollstaendige Einlesen kann ueber eine Minute dauern).
         zweistufig = (len(eingaben) == 1 and not einzeln and "list=" in eingaben[0])
+        # Der erste Titel steht oft schon im Link (watch?v=<ID>): ihn sofort vorbereiten,
+        # parallel zum Einlesen der Playlist (spart einige Sekunden bis zum ersten Ton).
+        # Die Adresse muss genau so aussehen wie in titel_liste_aufbauen erzeugt.
+        treffer = re.search(r"[?&]v=([\w-]{11})", eingaben[0])
+        if treffer:
+            self._server_sicherstellen().vorbereiten_im_hintergrund(
+                f"https://www.youtube.com/watch?v={treffer.group(1)}")
         liste, fehler = titel_liste_aufbauen(eingaben, self._cookie_args(), einzeln,
                                              bis=ANFANG_TITEL if zweistufig else None)
         for f in fehler:
@@ -722,6 +730,7 @@ class Zentrale:
                     "warteschlange": titel_liste if laeuft else [],
                     "index": index,
                     "jetzt": box.jetzt,
+                    "vorbereitung": bool(laeuft and box.wiedergabe.vorbereitung),
                 })
             return {
                 "boxen": boxen,

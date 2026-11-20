@@ -68,8 +68,8 @@ Lokal unter Windows bauen (dieselben Schritte wie im Workflow; lokal so noch nic
    - [WinSW-x64.exe v2.12.0](https://github.com/winsw/winsw/releases/tag/v2.12.0) als `paket_dienst\RaumfeldRemote-Dienst.exe` speichern
    - In `paket_dienst\tools\`: `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe`, `deno.exe`
 5. Installer erzeugen (Version wie in `raumfeld_remote/__init__.py`):
-   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.14.0 installer\raumfeld_remote.iss`
-6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.14.0.exe`
+   `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.14.1 installer\raumfeld_remote.iss`
+6. Ergebnis: `dist_installer\RaumfeldRemote-Setup-0.14.1.exe`
 
 **Funktionen der Web-Oberfläche:**
 - Anmeldung mit einem gemeinsamen Passwort (30 Tage angemeldet bleiben; Sperre nach 5 Fehlversuchen für 10 Minuten)

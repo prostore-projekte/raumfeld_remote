@@ -43,6 +43,8 @@ class Wiedergabe:
         self._sprung: int | None = None  # gewuenschter Zielindex (Weiter/Zurueck)
         self._wecker = threading.Event()  # weckt die Warte-Schleife sofort auf
         self._thread: threading.Thread | None = None
+        # True, solange der aktuelle Titel noch vorbereitet wird (Anzeige "wird vorbereitet")
+        self.vorbereitung = False
 
     # ------------------------------------------------------------------ API
     def starte(self, titel: list[Titel], mischen: bool = False) -> None:
@@ -133,7 +135,14 @@ class Wiedergabe:
             # Titeldaten vorab ermitteln (falls nicht schon im Hintergrund geschehen):
             # Dann liefert der Stream sofort Daten, sobald der Lautsprecher ihn abruft.
             # Ohne Vorbereitung wartet die Box 10-20 s auf die ersten Daten.
-            self.server.vorbereiten(titel.quelle)
+            # Naechsten Titel gleichzeitig vorbereiten (parallel), damit auch "Weiter" schnell geht
+            if self._index + 1 < len(self._titel):
+                self.server.vorbereiten_im_hintergrund(self._titel[self._index + 1].quelle)
+            self.vorbereitung = True
+            try:
+                self.server.vorbereiten(titel.quelle)
+            finally:
+                self.vorbereitung = False
             if self._ende:
                 break      # waehrenddessen Stop gedrueckt
             if self._sprung is not None:
@@ -149,9 +158,6 @@ class Wiedergabe:
                     CurrentURIMetaData=baue_didl(titel.titel, url))
                 avt(self.renderer, "Play", Speed=1)
                 self._abruf_pruefen(f"{self.praefix}{self._index}", url)
-                # Naechsten Titel schon jetzt vorbereiten, damit der Wechsel schnell geht
-                if self._index + 1 < len(self._titel):
-                    self.server.vorbereiten_im_hintergrund(self._titel[self._index + 1].quelle)
             except (RuntimeError, OSError) as exc:
                 self.bei_meldung(f"Fehler bei „{titel.titel}“: {exc}")
                 self._index += 1

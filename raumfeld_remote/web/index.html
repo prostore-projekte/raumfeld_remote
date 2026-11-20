@@ -404,6 +404,7 @@ function anzeigen() {
   const fremd = !laeuft && boxSpielt;   // laeuft, aber nicht ueber diese Oberflaeche gestartet
   $("status").textContent = !box ? "Kein Lautsprecher gewählt"
     : j.zustand === "NICHT_ERREICHBAR" ? "⚠ Lautsprecher antwortet nicht"
+    : laeuft && box.vorbereitung ? "⏳ Titel wird vorbereitet … (dauert ca. 10 s)"
     : laeuft ? (box.pausiert ? "⏸ Pausiert" : "▶ Spielt") + (box.gestartet_von ? " · gestartet von " + box.gestartet_von : "")
     : fremd ? (j.zustand === "PAUSED_PLAYBACK" ? "⏸ Pausiert" : "▶ Spielt") + " · andere Quelle (z. B. Raumfeld-App)"
     : "Keine Wiedergabe";

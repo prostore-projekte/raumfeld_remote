@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.14.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.14.1 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -123,6 +123,10 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   aber yt-dlp liefert in 20 s nur 64 KB (YouTube-Auswertung mit deno). 0.12.0: Playlist zweistufig (25 + Rest im
   Hintergrund, `Wiedergabe.anhaengen`), Titel vorab per `yt-dlp -j` vorbereitet (`StreamServer.vorbereiten`,
   `--load-info-json`, 3 h gültig), nächster Titel im Hintergrund. Nur mit nachgebautem yt-dlp getestet.
+  **Befund 0.14.0 (Sascha):** 25 Titel laden „deutlich schneller“, Abspielen dauert länger: `yt-dlp -j` braucht ~10 s
+  je Titel; im Protokoll wurde Titel 1 nach der Vorbereitung übersprungen (vermutlich ⏭ gedrückt, weil der Titel schon
+  angezeigt wurde). 0.14.1: Titel aus `watch?v=` sofort vorbereiten (parallel zum Playlist-Laden; trifft nur, wenn er
+  der erste Playlist-Eintrag ist – bei RD-Mixen **unklar**), nächster Titel parallel, Anzeige „wird vorbereitet“.
 - Ob der Port in der Raumfeld-Geräte-URL (z. B. `:60092`) nach einem Neustart der Box gleich bleibt, ist **unbekannt**.
 - Ob Raumfeld-Boxen in der Spotify-Geräteliste (Connect) erscheinen, ist **unbekannt** (hängt von Modell/Firmware ab). Die automatische Zuordnung Box ↔ Connect-Gerät per Namensvergleich ist eine **Annahme**.
 - Spotify-Web-API-Wiedergabesteuerung braucht nach Kenntnisstand **Premium**.
@@ -227,3 +231,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.12.0 | Schnellerer Start: Playlist zweistufig, Titel vorab vorbereitet (yt-dlp -j / --load-info-json) |
 | 20.11.2026 | 0.13.0 | Port-Suche für bekannte Boxen (Port wechselt nach Neustart der Box) |
 | 20.11.2026 | 0.14.0 | „Was läuft gerade“ (GetPositionInfo/DIDL), Steuerung fremder Wiedergabe, Ruhezeit stoppt alles |
+| 20.11.2026 | 0.14.1 | Erster Titel früher vorbereitet, nächster parallel, Anzeige „wird vorbereitet“ |
