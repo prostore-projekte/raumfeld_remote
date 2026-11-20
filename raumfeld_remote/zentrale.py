@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import random
 import secrets
 import subprocess
 import sys
@@ -92,6 +93,9 @@ def verknuepfung_schreiben(port: int) -> None:
     except OSError as exc:
         protokoll(f"✗ Startmenü-Verknüpfung nicht aktualisiert: {exc}")
 
+
+# Grosse Playlists: so viele Titel werden sofort geladen, der Rest im Hintergrund
+ANFANG_TITEL = 25
 
 # Wochentage fuer Meldungen (Index wie datetime.weekday())
 WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -376,13 +380,36 @@ class Zentrale:
             raise ValueError("Bitte einen Link oder Suchbegriff eingeben.")
 
         protokoll(f"{wer}: Abspielen auf {box.renderer.name}: {', '.join(eingaben)[:200]}")
-        liste, fehler = titel_liste_aufbauen(eingaben, self._cookie_args(), einzeln)
+        # Grosse Playlists: erst den Anfang laden und sofort starten, den Rest im Hintergrund
+        # nachladen (das vollstaendige Einlesen kann ueber eine Minute dauern).
+        zweistufig = (len(eingaben) == 1 and not einzeln and "list=" in eingaben[0])
+        liste, fehler = titel_liste_aufbauen(eingaben, self._cookie_args(), einzeln,
+                                             bis=ANFANG_TITEL if zweistufig else None)
         for f in fehler:
             protokoll(f"  Hinweis: {f}")
         if not liste:
             raise ValueError("Keine abspielbaren Titel gefunden. " + " ".join(fehler))
 
-        return self._liste_starten(box, liste, zufall, wer)
+        meldung = self._liste_starten(box, liste, zufall, wer)
+        if zweistufig and len(liste) >= ANFANG_TITEL:
+            wiedergabe = box.wiedergabe
+            threading.Thread(target=self._rest_nachladen,
+                             args=(box, wiedergabe, eingaben[0], zufall), daemon=True).start()
+            meldung += " Weitere Titel der Playlist werden nachgeladen …"
+        return meldung
+
+    def _rest_nachladen(self, box: BoxZustand, wiedergabe, url: str, zufall: bool) -> None:
+        """Hintergrund: restliche Titel einer grossen Playlist laden und anhaengen."""
+        beginn = time.monotonic()
+        rest, _fehler = titel_liste_aufbauen([url], self._cookie_args(), ab=ANFANG_TITEL + 1)
+        # Inzwischen etwas anderes gestartet? Dann nichts anhaengen.
+        if box.wiedergabe is not wiedergabe or not wiedergabe.laeuft or not rest:
+            return
+        if zufall:
+            random.shuffle(rest)
+        wiedergabe.anhaengen(rest)
+        protokoll(f"  {box.renderer.name}: {len(rest)} weitere Titel nachgeladen "
+                  f"({time.monotonic() - beginn:.0f} s).")
 
     def _liste_starten(self, box: BoxZustand, liste: list[Titel], zufall: bool, wer: str) -> str:
         """Startet eine fertige Titelliste auf einem Lautsprecher (ersetzt dessen Warteschlange)."""

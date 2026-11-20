@@ -81,13 +81,16 @@ def js_runtime_argumente() -> list[str]:
 # ---------------------------------------------------------------------------
 
 def titel_liste_aufbauen(eingaben: list[str], cookie_args: list[str],
-                         einzeln: bool = False) -> tuple[list[Titel], list[str]]:
+                         einzeln: bool = False, bis: int | None = None,
+                         ab: int | None = None) -> tuple[list[Titel], list[str]]:
     """
     Wandelt Eingaben in Titel um.
       - Lokale Datei  -> ein Titel
       - URL           -> ein oder mehrere Titel (Playlists werden aufgeloest)
       - Freitext      -> YouTube-Suche, erster Treffer
     einzeln=True: Bei 'watch?v=..&list=..' nur den einen Titel nehmen.
+    bis/ab: nur Playlist-Eintraege bis bzw. ab dieser Nummer (1-basiert, wie bei yt-dlp).
+            Damit laesst sich der Anfang einer grossen Playlist schnell laden und der Rest spaeter.
 
     Rueckgabe: (Titel-Liste, Liste von Fehlermeldungen)
     """
@@ -123,6 +126,10 @@ def titel_liste_aufbauen(eingaben: list[str], cookie_args: list[str],
                   "--print", "%(id)s\t%(title)s", *cookie_args, *js_runtime_argumente()]
         if einzeln:
             befehl.append("--no-playlist")
+        if bis:
+            befehl += ["--playlist-end", str(bis)]
+        if ab:
+            befehl += ["--playlist-start", str(ab)]
         befehl.append(eintrag)
 
         proc = subprocess.run(befehl, capture_output=True, text=True,

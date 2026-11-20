@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.12.0 – 20.11.2026
+### Geändert
+- **Schnellerer Start:** Große Playlists starten nach den ersten 25 Titeln, der Rest wird im Hintergrund nachgeladen
+- **Schnellerer Titelstart:** yt-dlp ermittelt die Titeldaten vorab (den nächsten Titel schon während der aktuelle
+  läuft); beim Abspielen entfällt dann die langsame Auswertung der YouTube-Seite. Gilt für Dienst und Desktop-Programm.
+
 ## 0.11.1 – 20.11.2026
 ### Behoben
 - Dienst fand Lautsprecher im anderen Netz (VPN) nicht, die Einzelplatz-Variante schon: Diese fragt die zuletzt

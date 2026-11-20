@@ -15,8 +15,11 @@ import http.server
 import os
 import socketserver
 import subprocess
+import tempfile
 import threading
+import time
 import urllib.parse
+from pathlib import Path
 
 from .protokoll import protokoll
 from .quellen import KEIN_FENSTER, finde_programm, js_runtime_argumente
@@ -152,10 +155,14 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         if ytdlp_exe is None:
             return []
         # yt-dlp schreibt das beste Audio nach stdout ("-o -")
+        # Vorbereitete Titeldaten vorhanden? Dann muss yt-dlp die YouTube-Seite nicht erneut
+        # auswerten (das dauert mit JavaScript-Loesung oft 10-20 s) und laedt sofort.
+        info = self.server.info_datei(quelle)  # type: ignore[attr-defined]
+        eingabe = ["--load-info-json", info] if info else [quelle]
         ytdlp_befehl = [ytdlp_exe, "--quiet", "--no-playlist",  # Warnungen/Fehler -> Protokoll
                         *self.server.cookie_args,  # type: ignore[attr-defined]
                         *js_runtime_argumente(),   # JavaScript-Laufzeit fuer YouTube
-                        "-f", "bestaudio/best", "-o", "-", quelle]
+                        "-f", "bestaudio/best", "-o", "-", *eingabe]
         if not js_runtime_argumente():
             protokoll("  Hinweis: deno.exe nicht gefunden - YouTube liefert ohne JavaScript-Laufzeit "
                       "oft kein Audio. start.bat erneut ausführen.")
@@ -188,11 +195,97 @@ class StreamServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         self.quellen: dict[str, str] = {}
         # Nummer (als Text) -> Anzahl GET-Anfragen (zeigt, ob der Lautsprecher den Stream abruft)
         self.abrufe: dict[str, int] = {}
+        # Vorbereitete Titeldaten (yt-dlp-JSON): Quelle -> (Dateipfad, Zeitpunkt)
+        self._infos: dict[str, tuple[Path, float]] = {}
+        self._in_arbeit: dict[str, threading.Event] = {}   # laufende Vorbereitungen
+        self._info_sperre = threading.Lock()
+        self._info_ordner = Path(tempfile.gettempdir()) / "raumfeld_remote_infos"
         # Praefix -> Funktion, die eine Quelle wie "tidal:12345" in eine ffmpeg-Eingabe
         # (URL oder Dateipfad) umwandelt; wird von der Zentrale befuellt
         self.aufloeser: dict = {}
         protokoll(f"=== Stream-Server gestartet auf Port {port} ===")
         self._thread: threading.Thread | None = None
+
+    # ------------------------------------------------------------ Vorbereitung
+    # Gueltigkeit vorbereiteter Titeldaten. Die darin enthaltenen YouTube-Adressen
+    # laufen nach einigen Stunden ab (Kenntnisstand: ca. 6 h) -> sicherheitshalber 3 h.
+    INFO_GUELTIG = 3 * 3600
+
+    @staticmethod
+    def _vorbereitbar(quelle: str) -> bool:
+        """Nur YouTube-Links und YouTube-Suchen (keine Dateien, keine tidal:-Quellen)."""
+        return quelle.startswith(("http://", "https://", "ytsearch"))
+
+    def info_datei(self, quelle: str) -> str | None:
+        """Pfad der vorbereiteten Titeldaten, falls vorhanden und noch gueltig."""
+        with self._info_sperre:
+            eintrag = self._infos.get(quelle)
+        if eintrag and time.time() - eintrag[1] < self.INFO_GUELTIG and eintrag[0].is_file():
+            return str(eintrag[0])
+        return None
+
+    def vorbereiten(self, quelle: str, timeout: float = 60.0) -> bool:
+        """
+        Laesst yt-dlp die Titeldaten (Formate, Adressen) vorab ermitteln und speichert sie
+        als JSON. Blockiert, bis fertig (hoechstens timeout). Mehrfache Aufrufe fuer dieselbe
+        Quelle warten auf die laufende Vorbereitung statt sie doppelt zu starten.
+        Rueckgabe: True, wenn Titeldaten bereitliegen.
+        """
+        if not self._vorbereitbar(quelle):
+            return False
+        if self.info_datei(quelle):
+            return True
+        ytdlp_exe = finde_programm("yt-dlp")
+        if ytdlp_exe is None:
+            return False
+        with self._info_sperre:
+            laufend = self._in_arbeit.get(quelle)
+            if laufend is None:
+                self._in_arbeit[quelle] = threading.Event()
+        if laufend is not None:
+            laufend.wait(timeout)          # andere Vorbereitung abwarten
+            return self.info_datei(quelle) is not None
+
+        beginn = time.monotonic()
+        try:
+            self._info_ordner.mkdir(parents=True, exist_ok=True)
+            self._alte_infos_loeschen()
+            ergebnis = subprocess.run(
+                [ytdlp_exe, "--quiet", "--no-warnings", "--no-playlist", "-j",
+                 *self.cookie_args, *js_runtime_argumente(), "-f", "bestaudio/best", quelle],
+                capture_output=True, timeout=timeout, creationflags=KEIN_FENSTER)
+            json_text = ergebnis.stdout.strip().splitlines()[0] if ergebnis.stdout.strip() else b""
+            if ergebnis.returncode != 0 or not json_text:
+                fehler = ergebnis.stderr.decode("utf-8", errors="replace").strip().splitlines()
+                protokoll(f"  Vorbereitung fehlgeschlagen ({fehler[-1] if fehler else 'keine Ausgabe'}) – "
+                          "Titel wird beim Abspielen direkt geladen.")
+                return False
+            datei = self._info_ordner / f"{abs(hash(quelle))}_{int(time.time())}.json"
+            datei.write_bytes(json_text)
+            with self._info_sperre:
+                self._infos[quelle] = (datei, time.time())
+            protokoll(f"  Titel vorbereitet in {time.monotonic() - beginn:.1f} s")
+            return True
+        except (OSError, subprocess.SubprocessError) as exc:
+            protokoll(f"  Vorbereitung fehlgeschlagen: {exc}")
+            return False
+        finally:
+            with self._info_sperre:
+                self._in_arbeit.pop(quelle).set()
+
+    def vorbereiten_im_hintergrund(self, quelle: str) -> None:
+        """Wie vorbereiten(), aber ohne zu warten (z. B. fuer den naechsten Titel)."""
+        if self._vorbereitbar(quelle) and not self.info_datei(quelle):
+            threading.Thread(target=self.vorbereiten, args=(quelle,), daemon=True).start()
+
+    def _alte_infos_loeschen(self) -> None:
+        """Abgelaufene Titeldaten aus Speicher und Temp-Ordner entfernen."""
+        grenze = time.time() - self.INFO_GUELTIG
+        with self._info_sperre:
+            for quelle, (datei, zeit) in list(self._infos.items()):
+                if zeit < grenze:
+                    del self._infos[quelle]
+                    datei.unlink(missing_ok=True)
 
     def starten(self) -> None:
         """Startet den Server im Hintergrund."""

@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.11.1 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.12.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -112,6 +112,15 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   `letzte_box`/`manuelle_boxen` (direkter HTTP-Abruf der Geräte-XML). Ob Raumfeld-Boxen auf Unicast-M-SEARCH antworten,
   bleibt unbekannt. 0.11.1: Dienst übernimmt diese URLs einmalig aus `%PROGRAMDATA%` und `C:\Users\*\AppData\Roaming\
   RaumfeldRemote\einstellungen.json` in `bekannte_boxen` und merkt sich jedes gefundene Gerät.
+  **Befund 0.11.0 mit Firewall-Regel UDP/alle Profile (Sascha):** weiterhin keine Antwort → Firewall ist **nicht** die
+  Ursache. Boxen antworten nicht auf Unicast-M-SEARCH über das VPN (oder Router filtert). Manuell eingetragen läuft es
+  (`http://192.168.20.145:54631/<uuid>.xml`). **Achtung:** Port der Geräte-URL war früher `:60092`, jetzt `:54631` →
+  ändert sich vermutlich bei Neustart der Box; gemerkte URLs können veralten. Idee (nicht umgesetzt): bei veralteter
+  URL Ports des bekannten Hosts abtasten und `/<uuid>.xml` abrufen.
+- **Langsamer Start (Sascha, 0.11.0):** Playlist laden ~1 min, danach ~30 s Stille. Protokoll: Box ruft sofort ab,
+  aber yt-dlp liefert in 20 s nur 64 KB (YouTube-Auswertung mit deno). 0.12.0: Playlist zweistufig (25 + Rest im
+  Hintergrund, `Wiedergabe.anhaengen`), Titel vorab per `yt-dlp -j` vorbereitet (`StreamServer.vorbereiten`,
+  `--load-info-json`, 3 h gültig), nächster Titel im Hintergrund. Nur mit nachgebautem yt-dlp getestet.
 - Ob der Port in der Raumfeld-Geräte-URL (z. B. `:60092`) nach einem Neustart der Box gleich bleibt, ist **unbekannt**.
 - Ob Raumfeld-Boxen in der Spotify-Geräteliste (Connect) erscheinen, ist **unbekannt** (hängt von Modell/Firmware ab). Die automatische Zuordnung Box ↔ Connect-Gerät per Namensvergleich ist eine **Annahme**.
 - Spotify-Web-API-Wiedergabesteuerung braucht nach Kenntnisstand **Premium**.
@@ -204,3 +213,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.10.0 | Ports einstellbar (Standard 8766), Firewall-Programmregel, Suchdiagnose, Neusuche nach Netzänderung |
 | 20.11.2026 | 0.11.0 | Tidal (inoffizielle API `tidalapi`, Geräte-Code, Ton direkt von Tidal), Bereich „Konten“ |
 | 20.11.2026 | 0.11.1 | Gemerkte Geräte (Übernahme aus Einzelplatz-Variante, gefundene merken) statt nur SSDP |
+| 20.11.2026 | 0.12.0 | Schnellerer Start: Playlist zweistufig, Titel vorab vorbereitet (yt-dlp -j / --load-info-json) |
