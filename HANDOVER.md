@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 19.11.2026 · Version 0.7.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.8.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -114,7 +114,25 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 - PR #1 (0.1.1) gemergt. 0.2.0 und 0.3.0 auf Branch `claude/ecstatic-mayer-gfo8yn`, neuer PR nach `main`.
 - Regel: Nach jedem Schritt pushen und PR erstellen/aktualisieren.
 
+## 7a. Neue Architektur ab 0.8.0 (Büro, mehrere Benutzer)
+- Sascha (Nutzer, **duzen**): Desktop-Variante war „eher Single-User“ (start.bat, Einstellungen nicht sauber für alle).
+  Wunsch: **Web-Oberfläche mit Passwort** auf dem Terminalserver (**Windows Server 2025**), mehrere Nutzer im Büro,
+  **Ruhezeiten** („ab 21:00 keine Musik“), richtiger **Installer für alle**.
+- Umsetzung: zentraler Dienst `zentrale.py` + Flask `web.py` + `dienst.py` (waitress), Windows-Dienst per **WinSW v2.12.0**,
+  Installer **Inno Setup** (`installer/raumfeld_remote.iss`), gebaut und auf dem Runner installiert/deinstalliert im Job
+  `dienst-installer`. Daten in `C:\ProgramData\RaumfeldRemote` (icacls: nur SYSTEM/Admins).
+- Lokal getestet: 18 API-Prüfungen (Login, Sperre, Ruhezeit, Einstellungen), Ablauf mit simuliertem UPnP-Renderer
+  (Abspielen, Lautstärke, Ruhezeit-Stopp), Oberfläche per Playwright (Desktop/Handy, keine JS-Fehler).
+- **Nicht** getestet: echter Windows Server 2025, echte Boxen über den Dienst, Inno/WinSW nur im CI.
+- Entscheidungen/Annahmen: Ein Passwort für alle (keine Rollen). Ersteinrichtung nur von localhost. YouTube-Anmeldung
+  im Dienst nur per hochgeladener `cookies.txt` (Dienst läuft als SYSTEM, kein Browser). **Spotify im Dienst noch nicht.**
+  Ports fest 8080/8765 (Firewall-Regeln im Installer); Änderung des Web-Ports nur über `dienst.json` + eigene Firewall-Regel.
+- Desktop-Programm (`gui.py`, start.bat) bleibt für Einzelplätze erhalten.
+
 ## 8. Offene Punkte / nächste Schritte
+0. **Installer auf dem Terminalserver testen** (Artifact „RaumfeldRemote-Setup“), Passwort setzen, Netze/Ruhezeiten
+   einstellen, von einem Büro-PC aus abspielen. Danach entscheiden, ob Desktop-Variante/start.bat entfallen.
+0b. Spotify in der Web-Oberfläche (OAuth über eingefügte Redirect-URL), ggf. Benutzerrollen (Admin-Passwort).
 1. Neuen PR (0.2.0 + 0.3.0) prüfen und mergen (siehe Abschnitt 7).
 2. **Erster Start auf Windows 11** → Fehlermeldungen aus der Statuszeile zurückmelden.
 3. Windows-Firewall-Regel für Port 8765 (privates Netz) setzen; Netzwerkprofil „Privat“ prüfen.
@@ -144,3 +162,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.5.0 | Diagnose „kein Ton“: Stream-Protokoll, Abruf-Prüfung nach 10 s, Fehler von yt-dlp/ffmpeg protokolliert |
 | 19.11.2026 | 0.6.0 | Aufklappbares Live-Protokoll, UPnP-Befehle/Zustände protokolliert, `protokoll.py` |
 | 19.11.2026 | 0.7.0 | Ursache „kein Ton“: yt-dlp ohne JavaScript-Laufzeit → deno ergänzt, yt-dlp-Update in `start.bat` |
+| 20.11.2026 | 0.8.0 | Zentraler Dienst mit Web-Oberfläche, Passwort, Ruhezeiten, Installer (Inno Setup + WinSW) |

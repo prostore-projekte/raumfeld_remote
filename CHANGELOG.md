@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.8.0 – 20.11.2026
+### Hinzugefügt
+- **Zentraler Dienst mit Web-Oberfläche** für den Mehrbenutzer-Betrieb im Büro (`raumfeld_remote/zentrale.py`,
+  `web.py`, `dienst.py`, `web/*.html`):
+  - Zugang mit gemeinsamem Passwort (PBKDF2), Ersteinrichtung nur direkt am Server, Sperre nach Fehlversuchen
+  - eine gemeinsame Wiedergabe und Warteschlange pro Lautsprecher, für alle sichtbar; mehrere Lautsprecher parallel
+  - **Ruhezeiten** (Wochentage + Uhrzeit, auch über Mitternacht): stoppt laufende Musik, sperrt Abspielen
+  - zentrale Einstellungen (Netze, Geräte, Favoriten, Bitrate, YouTube-`cookies.txt`) für alle
+  - Protokoll in der Oberfläche; tägliches automatisches `yt-dlp`-Update
+- **Installer** (Inno Setup, `installer/`): Programm für alle Benutzer, Windows-Dienst (WinSW), Firewall-Regeln
+  8080/8765, abgesicherter Datenordner, Startmenü-Eintrag; lautlose Installation möglich
+- GitHub-Workflow baut `RaumfeldRemote-Setup-x.y.z.exe` und testet Installation, Dienst, Web-Oberfläche und
+  Deinstallation auf einem Windows-Runner
+### Geändert
+- `Wiedergabe` (player.py): Stream-Präfix pro Wiedergabe, damit mehrere Lautsprecher sich den Stream-Server teilen;
+  Warteschlange abfragbar, Sprung zu einem Titel
+- Datenordner per Umgebungsvariable `RAUMFELD_REMOTE_DATEN` wählbar
+
 ## 0.7.0 – 19.11.2026
 ### Behoben
 - Kein Ton bei YouTube: `yt-dlp` konnte die JavaScript-Aufgaben von YouTube nicht lösen („Signature/n challenge

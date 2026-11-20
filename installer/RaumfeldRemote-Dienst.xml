@@ -1,0 +1,25 @@
+<!--
+  RaumfeldRemote-Dienst.xml - Konfiguration fuer WinSW (Windows Service Wrapper).
+  WinSW liegt als RaumfeldRemote-Dienst.exe daneben und liest diese Datei
+  (gleicher Name, Endung .xml). Es startet RaumfeldRemoteDienst.exe als
+  Windows-Dienst unter dem Konto SYSTEM.
+  Befehle (als Administrator): RaumfeldRemote-Dienst.exe install | start | stop | uninstall
+-->
+<service>
+  <id>RaumfeldRemote</id>
+  <name>Raumfeld Remote</name>
+  <description>Zentrale Web-Oberfläche zur Steuerung der Raumfeld-Lautsprecher (Port 8080).</description>
+  <executable>%BASE%\RaumfeldRemoteDienst.exe</executable>
+  <!-- Alle Daten (Einstellungen, Passwort-Hash, cookies.txt, Protokoll) zentral ablegen -->
+  <env name="RAUMFELD_REMOTE_DATEN" value="%ProgramData%\RaumfeldRemote"/>
+  <startmode>Automatic</startmode>
+  <!-- Bei Absturz nach 10 Sekunden neu starten -->
+  <onfailure action="restart" delay="10 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <!-- Konsolenausgabe des Dienstes als Logdateien, max. 3 x 1 MB -->
+  <logpath>%ProgramData%\RaumfeldRemote\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>1024</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+</service>

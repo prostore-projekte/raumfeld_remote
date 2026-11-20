@@ -1,0 +1,493 @@
+<!doctype html>
+<!--
+  index.html - Hauptseite der Web-Oberflaeche von Raumfeld Remote.
+  Reines HTML/CSS/JavaScript ohne externe Bibliotheken (funktioniert auch ohne Internet).
+  Der Zustand wird alle 2 Sekunden von /api/zustand geholt, damit alle Benutzer
+  dasselbe sehen (was laeuft, Warteschlange, Ruhezeit).
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raumfeld Remote</title>
+<style>
+  /* ---------- Farben (hell/dunkel) ---------- */
+  :root { --bg:#f4f5f7; --karte:#fff; --text:#1d2330; --leise:#6b7280; --akzent:#2f6fde;
+          --rand:#d6d9e0; --fehler:#c0392b; --warn-bg:#fff4d6; --warn-text:#7a5300; --ok:#1e8e3e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171c; --karte:#1e232b; --text:#e6e9ef; --leise:#9aa3b2; --rand:#353b46;
+            --warn-bg:#3a3017; --warn-text:#ffd98a; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--karte);
+           border-bottom:1px solid var(--rand); position:sticky; top:0; z-index:2; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  header a { color:var(--leise); text-decoration:none; font-size:14px; }
+  main { max-width:960px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  .karte { background:var(--karte); border:1px solid var(--rand); border-radius:12px; padding:16px; }
+  .karte h2 { font-size:16px; margin:0 0 12px; }
+  .zeile { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .zeile > .wachsen { flex:1; min-width:180px; }
+  input, select, textarea, button { font:inherit; color:inherit; }
+  input[type=text], input[type=password], input[type=time], select, textarea {
+    padding:8px 10px; border:1px solid var(--rand); border-radius:8px; background:transparent; }
+  select option { background:var(--karte); }
+  textarea { width:100%; min-height:70px; resize:vertical; }
+  button { padding:8px 14px; border:1px solid var(--rand); border-radius:8px; background:transparent; cursor:pointer; }
+  button.haupt { background:var(--akzent); border-color:var(--akzent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  .transport button { font-size:20px; width:52px; height:44px; padding:0; }
+  .leise { color:var(--leise); font-size:13px; }
+  .titel { font-size:18px; font-weight:600; margin:4px 0; word-break:break-word; }
+  .hinweis { padding:10px 14px; border-radius:8px; background:var(--warn-bg); color:var(--warn-text); }
+  .meldung { min-height:1.5em; margin-top:8px; }
+  .meldung.fehler { color:var(--fehler); }
+  .meldung.ok { color:var(--ok); }
+  input[type=range] { width:100%; accent-color:var(--akzent); }
+  ol.schlange { margin:0; padding-left:24px; max-height:260px; overflow:auto; }
+  ol.schlange li { cursor:pointer; padding:2px 0; }
+  ol.schlange li.aktiv { font-weight:700; color:var(--akzent); }
+  .favorit { display:inline-flex; border:1px solid var(--rand); border-radius:16px; overflow:hidden; margin:0 6px 6px 0; }
+  .favorit button { border:0; border-radius:0; padding:4px 10px; }
+  details > summary { cursor:pointer; font-weight:600; font-size:16px; }
+  details[open] > summary { margin-bottom:12px; }
+  .regel { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:6px 0; border-bottom:1px solid var(--rand); }
+  .regel label { font-size:13px; }
+  pre.protokoll { max-height:320px; overflow:auto; margin:0; font:12px/1.4 Consolas, monospace; white-space:pre-wrap; }
+  .abstand { margin-top:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔊 Raumfeld Remote</h1>
+  <span class="leise" id="version"></span>
+  <a href="/logout">Abmelden</a>
+</header>
+
+<main>
+  <!-- Hinweis waehrend einer Ruhezeit -->
+  <div class="hinweis" id="ruhezeit" hidden></div>
+  <div class="hinweis" id="programme" hidden></div>
+
+  <!-- ===== Lautsprecher und aktuelle Wiedergabe ===== -->
+  <section class="karte">
+    <div class="zeile">
+      <select id="box" class="wachsen" aria-label="Lautsprecher"></select>
+      <button id="btnSuchen">🔍 Suchen</button>
+    </div>
+    <div class="abstand">
+      <div class="leise" id="status">Keine Wiedergabe</div>
+      <div class="titel" id="titel"></div>
+      <div class="leise" id="boxMeldung"></div>
+    </div>
+    <div class="zeile abstand transport">
+      <button id="btnZurueck" title="Zurück">⏮</button>
+      <button id="btnPause" title="Pause / Weiter">⏯</button>
+      <button id="btnStop" title="Stop">⏹</button>
+      <button id="btnWeiter" title="Nächster Titel">⏭</button>
+    </div>
+    <div class="abstand">
+      <label class="leise" for="lautstaerke">Lautstärke: <span id="lautWert">–</span></label>
+      <input type="range" id="lautstaerke" min="0" max="100" value="0">
+    </div>
+  </section>
+
+  <!-- ===== Abspielen ===== -->
+  <section class="karte">
+    <h2>Abspielen (YouTube / YouTube Music)</h2>
+    <textarea id="eingabe" placeholder="Link, Playlist oder Suchbegriff – mehrere Zeilen möglich"></textarea>
+    <div class="zeile abstand">
+      <label><input type="checkbox" id="einzeln"> Nur diesen Titel</label>
+      <label><input type="checkbox" id="zufall"> Zufällige Reihenfolge</label>
+      <span class="wachsen"></span>
+      <button id="btnFavorit">☆ Als Favorit</button>
+      <button id="btnAbspielen" class="haupt">▶ Abspielen</button>
+    </div>
+    <div class="meldung" id="abspielMeldung"></div>
+    <div class="abstand" id="favoriten"></div>
+  </section>
+
+  <!-- ===== Warteschlange ===== -->
+  <section class="karte">
+    <h2>Warteschlange</h2>
+    <ol class="schlange" id="schlange"></ol>
+    <div class="leise" id="schlangeLeer">Leer.</div>
+  </section>
+
+  <!-- ===== Einstellungen (gelten fuer alle) ===== -->
+  <section class="karte">
+    <details id="einstellungenBereich">
+      <summary>⚙ Einstellungen (gelten für alle)</summary>
+
+      <h2>Ruhezeiten</h2>
+      <p class="leise">In diesen Zeiten wird laufende Musik gestoppt und Abspielen gesperrt.
+        Endet eine Zeit vor ihrem Beginn (z. B. 21:00–07:00), gilt sie über Mitternacht.</p>
+      <div id="regeln"></div>
+      <button id="btnRegel" class="abstand">+ Ruhezeit hinzufügen</button>
+
+      <h2 class="abstand">Netzwerk</h2>
+      <label class="leise" for="netze">Weitere Netze für die Suche (eins pro Zeile, z. B. 192.168.20.0/24)</label>
+      <textarea id="netze"></textarea>
+      <label class="leise" for="geraete">Fest eingetragene Geräte-URLs (eine pro Zeile)</label>
+      <textarea id="geraete"></textarea>
+
+      <h2 class="abstand">Stream</h2>
+      <label class="leise" for="bitrate">MP3-Bitrate</label>
+      <select id="bitrate"><option>128k</option><option>192k</option><option>256k</option><option>320k</option></select>
+
+      <div class="zeile abstand">
+        <button id="btnSpeichern" class="haupt">Einstellungen speichern</button>
+      </div>
+      <div class="meldung" id="einstMeldung"></div>
+
+      <h2 class="abstand">YouTube-Anmeldung</h2>
+      <p class="leise">Optional, z. B. für eigene Playlists oder „Gefällt mir“. Eine <code>cookies.txt</code>
+        (Netscape-Format, z. B. mit der Browser-Erweiterung „Get cookies.txt LOCALLY“ exportiert) hochladen.
+        Status: <span id="cookieStatus">–</span></p>
+      <div class="zeile">
+        <input type="file" id="cookieDatei" accept=".txt">
+        <button id="btnCookies">Hochladen</button>
+        <button id="btnCookiesWeg">Entfernen</button>
+      </div>
+      <div class="meldung" id="cookieMeldung"></div>
+
+      <h2 class="abstand">Gerät per URL hinzufügen</h2>
+      <div class="zeile">
+        <input type="text" id="geraetUrl" class="wachsen" placeholder="http://192.168.20.145:60092/….xml">
+        <button id="btnGeraet">Hinzufügen</button>
+      </div>
+      <div class="meldung" id="geraetMeldung"></div>
+
+      <h2 class="abstand">Passwort ändern</h2>
+      <div class="zeile">
+        <input type="password" id="pwAlt" placeholder="Bisheriges Passwort">
+        <input type="password" id="pwNeu" placeholder="Neues Passwort (min. 8 Zeichen)">
+        <button id="btnPasswort">Ändern</button>
+      </div>
+      <div class="meldung" id="pwMeldung"></div>
+    </details>
+  </section>
+
+  <!-- ===== Protokoll ===== -->
+  <section class="karte">
+    <details id="protokollBereich">
+      <summary id="protokollTitel">📋 Protokoll</summary>
+      <pre class="protokoll" id="protokoll"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+// ======================================================================
+// Hilfsfunktionen
+// ======================================================================
+const $ = (id) => document.getElementById(id);
+const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+let zustand = null;          // letzter Zustand vom Server
+let favoriten = [];          // aus den Einstellungen
+
+/** Ruft die API auf; wirft Error mit der Meldung des Servers bei Fehlern. */
+async function api(pfad, daten, methode) {
+  const optionen = { method: methode || (daten === undefined ? "GET" : "POST"), headers: {} };
+  if (daten instanceof FormData) optionen.body = daten;
+  else if (daten !== undefined) {
+    optionen.headers["Content-Type"] = "application/json";
+    optionen.body = JSON.stringify(daten);
+  }
+  const antwort = await fetch(pfad, optionen);
+  if (antwort.status === 401) { location.href = "/login"; throw new Error("Nicht angemeldet."); }
+  const json = await antwort.json().catch(() => ({}));
+  if (!antwort.ok) throw new Error(json.fehler || `Fehler ${antwort.status}`);
+  return json;
+}
+
+/** Zeigt eine Meldung in einem Element an (gruen = ok, rot = Fehler). */
+function melden(id, text, fehler) {
+  const el = $(id);
+  el.textContent = text || "";
+  el.className = "meldung " + (fehler ? "fehler" : "ok");
+}
+
+/** Aktuell gewaehlter Lautsprecher (ID = Geraete-URL). */
+const boxId = () => $("box").value;
+
+// ======================================================================
+// Zustand holen und anzeigen
+// ======================================================================
+async function zustandHolen() {
+  try {
+    zustand = await api("/api/zustand");
+    anzeigen();
+  } catch (e) { $("status").textContent = "Server nicht erreichbar: " + e.message; }
+}
+
+function anzeigen() {
+  $("version").textContent = "v" + zustand.version;
+  // Ruhezeit-Hinweis
+  $("ruhezeit").hidden = !zustand.ruhezeit;
+  $("ruhezeit").textContent = "🌙 Ruhezeit (" + zustand.ruhezeit + ") – Abspielen ist gesperrt.";
+  // Fehlende Programme auf dem Server
+  const fehlt = Object.entries(zustand.programme).filter(([, da]) => !da).map(([p]) => p);
+  $("programme").hidden = fehlt.length === 0;
+  $("programme").textContent = "⚠ Auf dem Server fehlt: " + fehlt.join(", ") + " – bitte neu installieren.";
+  $("cookieStatus").textContent = zustand.cookies ? "angemeldet (cookies.txt vorhanden)" : "nicht angemeldet";
+  $("btnSuchen").disabled = zustand.suche_laeuft;
+  $("btnSuchen").textContent = zustand.suche_laeuft ? "Suche läuft …" : "🔍 Suchen";
+
+  // Lautsprecherliste aktualisieren, Auswahl beibehalten (gemerkt pro Browser)
+  const auswahl = $("box");
+  const gemerkt = boxId() || localStorage.getItem("box") || "";
+  const neu = zustand.boxen.map((b) => b.id + "|" + b.name + (b.laeuft ? " ▶" : "")).join("\n");
+  if (auswahl.dataset.inhalt !== neu) {
+    auswahl.dataset.inhalt = neu;
+    auswahl.innerHTML = "";
+    for (const b of zustand.boxen) {
+      const opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = `${b.name} (${b.host})${b.laeuft ? "  ▶" : ""}`;
+      auswahl.appendChild(opt);
+    }
+    if (!zustand.boxen.length) auswahl.innerHTML = "<option value=''>Keine Lautsprecher gefunden</option>";
+    if (zustand.boxen.some((b) => b.id === gemerkt)) auswahl.value = gemerkt;
+    lautstaerkeHolen();
+  }
+
+  // Anzeige fuer den gewaehlten Lautsprecher
+  const box = zustand.boxen.find((b) => b.id === boxId());
+  const laeuft = !!(box && box.laeuft);
+  $("status").textContent = !box ? "Kein Lautsprecher gewählt"
+    : laeuft ? (box.pausiert ? "⏸ Pausiert" : "▶ Spielt") + (box.gestartet_von ? " · gestartet von " + box.gestartet_von : "")
+    : "Keine Wiedergabe";
+  $("titel").textContent = laeuft ? box.titel : "";
+  $("boxMeldung").textContent = box ? box.meldung : "";
+  for (const id of ["btnZurueck", "btnPause", "btnStop", "btnWeiter"]) $(id).disabled = !laeuft;
+  $("btnAbspielen").disabled = !box || !!zustand.ruhezeit;
+
+  // Warteschlange
+  const liste = $("schlange");
+  const eintraege = laeuft ? box.warteschlange : [];
+  const schluessel = eintraege.join("\n") + "#" + (box ? box.index : "");
+  if (liste.dataset.inhalt !== schluessel) {
+    liste.dataset.inhalt = schluessel;
+    liste.innerHTML = "";
+    eintraege.forEach((name, i) => {
+      const li = document.createElement("li");
+      li.textContent = name;
+      if (i === box.index) li.className = "aktiv";
+      li.title = "Zu diesem Titel springen";
+      li.onclick = () => steuern("springe", i);
+      liste.appendChild(li);
+    });
+    const aktiv = liste.querySelector(".aktiv");
+    if (aktiv) aktiv.scrollIntoView({ block: "nearest" });
+  }
+  $("schlangeLeer").hidden = eintraege.length > 0;
+}
+
+// ======================================================================
+// Lautsprecher, Lautstaerke, Transport
+// ======================================================================
+$("box").onchange = () => {
+  localStorage.setItem("box", boxId());
+  lautstaerkeHolen();
+  anzeigen();
+};
+$("btnSuchen").onclick = async () => {
+  try { await api("/api/suchen", {}); zustandHolen(); } catch (e) { alert(e.message); }
+};
+
+async function lautstaerkeHolen() {
+  if (!boxId()) return;
+  try {
+    const { wert } = await api("/api/lautstaerke?box=" + encodeURIComponent(boxId()));
+    $("lautstaerke").value = wert;
+    $("lautWert").textContent = wert;
+  } catch (e) { $("lautWert").textContent = "?"; }
+}
+
+// Lautstaerke entprellen: erst 250 ms nach der letzten Bewegung senden
+let lautTimer = null;
+$("lautstaerke").oninput = () => {
+  $("lautWert").textContent = $("lautstaerke").value;
+  clearTimeout(lautTimer);
+  lautTimer = setTimeout(async () => {
+    try { await api("/api/lautstaerke", { box: boxId(), wert: +$("lautstaerke").value }); }
+    catch (e) { alert(e.message); }
+  }, 250);
+};
+
+async function steuern(aktion, index) {
+  try { await api("/api/steuern", { box: boxId(), aktion, index: index ?? -1 }); zustandHolen(); }
+  catch (e) { alert(e.message); }
+}
+$("btnZurueck").onclick = () => steuern("voriger");
+$("btnWeiter").onclick = () => steuern("naechster");
+$("btnStop").onclick = () => steuern("stop");
+$("btnPause").onclick = () => {
+  const box = zustand && zustand.boxen.find((b) => b.id === boxId());
+  steuern(box && box.pausiert ? "weiter" : "pause");
+};
+
+// ======================================================================
+// Abspielen und Favoriten
+// ======================================================================
+async function abspielen(eingabe) {
+  melden("abspielMeldung", "Titel werden ermittelt …");
+  $("btnAbspielen").disabled = true;
+  try {
+    const { meldung } = await api("/api/abspielen", {
+      box: boxId(), eingabe, einzeln: $("einzeln").checked, zufall: $("zufall").checked });
+    melden("abspielMeldung", meldung);
+    zustandHolen();
+  } catch (e) { melden("abspielMeldung", e.message, true); }
+  finally { $("btnAbspielen").disabled = false; }
+}
+$("btnAbspielen").onclick = () => abspielen($("eingabe").value);
+
+function favoritenAnzeigen() {
+  const ziel = $("favoriten");
+  ziel.innerHTML = "";
+  favoriten.forEach((f, i) => {
+    const span = document.createElement("span");
+    span.className = "favorit";
+    const spielen = document.createElement("button");
+    spielen.textContent = "▶ " + f.name;
+    spielen.title = f.url;
+    spielen.onclick = () => { $("eingabe").value = f.url; abspielen(f.url); };
+    const weg = document.createElement("button");
+    weg.textContent = "✕";
+    weg.title = "Favorit entfernen";
+    weg.onclick = async () => {
+      if (!confirm(`Favorit „${f.name}“ für alle entfernen?`)) return;
+      favoriten.splice(i, 1);
+      await favoritenSpeichern();
+    };
+    span.append(spielen, weg);
+    ziel.appendChild(span);
+  });
+}
+async function favoritenSpeichern() {
+  try { await api("/api/einstellungen", { favoriten }); favoritenAnzeigen(); }
+  catch (e) { alert(e.message); }
+}
+$("btnFavorit").onclick = async () => {
+  const url = $("eingabe").value.trim();
+  if (!url) return alert("Erst einen Link oder Suchbegriff eingeben.");
+  const name = prompt("Name für den Favoriten:", url.slice(0, 40));
+  if (!name) return;
+  favoriten.push({ name, url });
+  await favoritenSpeichern();
+};
+
+// ======================================================================
+// Einstellungen
+// ======================================================================
+/** Eine Ruhezeit-Zeile (Wochentage + von/bis) im Editor anlegen. */
+function regelZeile(regel) {
+  const div = document.createElement("div");
+  div.className = "regel";
+  WOCHENTAGE.forEach((tag, i) => {
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.value = i; cb.checked = regel.tage.includes(i);
+    label.append(cb, " " + tag);
+    div.appendChild(label);
+  });
+  const von = document.createElement("input"); von.type = "time"; von.value = regel.von; von.className = "von";
+  const bis = document.createElement("input"); bis.type = "time"; bis.value = regel.bis; bis.className = "bis";
+  const weg = document.createElement("button"); weg.textContent = "✕"; weg.title = "Ruhezeit entfernen";
+  weg.onclick = () => div.remove();
+  div.append(" von ", von, " bis ", bis, weg);
+  $("regeln").appendChild(div);
+}
+/** Liest alle Ruhezeit-Zeilen aus dem Editor. */
+function regelnLesen() {
+  return [...document.querySelectorAll("#regeln .regel")].map((div) => ({
+    tage: [...div.querySelectorAll("input[type=checkbox]:checked")].map((cb) => +cb.value),
+    von: div.querySelector(".von").value,
+    bis: div.querySelector(".bis").value,
+  }));
+}
+$("btnRegel").onclick = () => regelZeile({ tage: [0, 1, 2, 3, 4], von: "21:00", bis: "07:00" });
+
+async function einstellungenHolen() {
+  const e = await api("/api/einstellungen");
+  $("netze").value = e.such_netze.join("\n");
+  $("geraete").value = e.manuelle_boxen.join("\n");
+  $("bitrate").value = e.bitrate;
+  $("regeln").innerHTML = "";
+  e.ruhezeiten.forEach(regelZeile);
+  favoriten = e.favoriten;
+  favoritenAnzeigen();
+}
+const zeilen = (id) => $(id).value.split("\n").map((z) => z.trim()).filter(Boolean);
+$("btnSpeichern").onclick = async () => {
+  try {
+    const { meldung } = await api("/api/einstellungen", {
+      such_netze: zeilen("netze"), manuelle_boxen: zeilen("geraete"),
+      bitrate: $("bitrate").value, ruhezeiten: regelnLesen() });
+    melden("einstMeldung", meldung);
+    zustandHolen();
+  } catch (e) { melden("einstMeldung", e.message, true); }
+};
+
+$("btnCookies").onclick = async () => {
+  const datei = $("cookieDatei").files[0];
+  if (!datei) return melden("cookieMeldung", "Bitte zuerst eine Datei wählen.", true);
+  const fd = new FormData(); fd.append("datei", datei);
+  try { melden("cookieMeldung", (await api("/api/cookies", fd)).meldung); zustandHolen(); }
+  catch (e) { melden("cookieMeldung", e.message, true); }
+};
+$("btnCookiesWeg").onclick = async () => {
+  if (!confirm("YouTube-Anmeldung für alle entfernen?")) return;
+  try { melden("cookieMeldung", (await api("/api/cookies?loeschen=1", {})).meldung); zustandHolen(); }
+  catch (e) { melden("cookieMeldung", e.message, true); }
+};
+$("btnGeraet").onclick = async () => {
+  try {
+    melden("geraetMeldung", (await api("/api/box", { url: $("geraetUrl").value })).meldung);
+    einstellungenHolen(); zustandHolen();
+  } catch (e) { melden("geraetMeldung", e.message, true); }
+};
+$("btnPasswort").onclick = async () => {
+  try {
+    melden("pwMeldung", (await api("/api/passwort", { alt: $("pwAlt").value, neu: $("pwNeu").value })).meldung);
+    $("pwAlt").value = $("pwNeu").value = "";
+  } catch (e) { melden("pwMeldung", e.message, true); }
+};
+
+// ======================================================================
+// Protokoll (nur abfragen, wenn aufgeklappt)
+// ======================================================================
+let protokollNummer = 0;
+async function protokollHolen() {
+  try {
+    const { zeilen: neu } = await api("/api/protokoll?ab=" + protokollNummer);
+    if (!neu.length) return;
+    protokollNummer = neu[neu.length - 1][0];
+    const pre = $("protokoll");
+    const unten = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 5;
+    pre.textContent += neu.map(([, z]) => z).join("\n") + "\n";
+    if (unten) pre.scrollTop = pre.scrollHeight;
+    // Fehler sichtbar machen, auch wenn das Protokoll zugeklappt ist
+    if (!$("protokollBereich").open && neu.some(([, z]) => /✗|ERROR|Fehler/.test(z)))
+      $("protokollTitel").textContent = "📋 Protokoll (Fehler!)";
+  } catch (e) { /* naechster Versuch beim naechsten Takt */ }
+}
+$("protokollBereich").ontoggle = () => {
+  if ($("protokollBereich").open) $("protokollTitel").textContent = "📋 Protokoll";
+};
+
+// ======================================================================
+// Start
+// ======================================================================
+zustandHolen();
+einstellungenHolen().catch((e) => melden("einstMeldung", e.message, true));
+protokollHolen();
+setInterval(zustandHolen, 2000);
+setInterval(protokollHolen, 3000);
+</script>
+</body>
+</html>
