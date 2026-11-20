@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.9.1 – 20.11.2026
+### Geändert
+- README nach Büro- und Einzelplatz-Variante gegliedert, Projektstand aktualisiert
+- HANDOVER: Kurzüberblick, GitHub-Stand, Architektur und offene Punkte auf aktuellen Stand gebracht
+
 ## 0.9.0 – 20.11.2026
 ### Hinzugefügt
 - **Spotify in der Web-Oberfläche**: gemeinsames Konto (Client-ID + Anmeldung per eingefügter Rückruf-Adresse),
