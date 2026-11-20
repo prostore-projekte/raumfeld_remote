@@ -102,6 +102,8 @@ jobs:
   # -------------------------------------------------------------------------
   dienst-installer:
     runs-on: windows-latest
+    permissions:
+      contents: write   # noetig, um auf main ein Release mit der Setup-EXE anzulegen
     defaults:
       run:
         shell: pwsh
@@ -143,11 +145,13 @@ jobs:
           Get-ChildItem $p -File | Select-Object Name, Length | Out-Host
 
       - name: Installer bauen (Inno Setup)
+        id: installer
         run: |
           choco install innosetup -y --no-progress | Out-Null
           $version = python -c "import raumfeld_remote; print(raumfeld_remote.__version__)"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\raumfeld_remote.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC fehlgeschlagen" }
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Installer testen (installieren, Dienst, Web, Firewall, deinstallieren)
         run: |
@@ -178,6 +182,22 @@ jobs:
           Start-Sleep -Seconds 5
           if (Get-Service RaumfeldRemote -ErrorAction SilentlyContinue) { throw "Dienst nach Deinstallation noch vorhanden" }
           Write-Host "Installer-Test OK"
+
+      # Auf main: Release "vX.Y.Z" mit der Setup-EXE anlegen (bzw. Datei ersetzen),
+      # damit der Installer direkt auf der Repo-Seite unter "Releases" liegt.
+      - name: Release veroeffentlichen (nur main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.installer.outputs.version }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag (Get-ChildItem dist_installer\*.exe).FullName --clobber
+          } else {
+            gh release create $tag (Get-ChildItem dist_installer\*.exe).FullName --title "Raumfeld Remote $tag" --notes "Installer für den zentralen Dienst mit Web-Oberfläche. Änderungen siehe CHANGELOG.md."
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Release fehlgeschlagen" }
 
       - uses: actions/upload-artifact@v4
         with:

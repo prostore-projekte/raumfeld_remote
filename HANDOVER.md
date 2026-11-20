@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.8.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.9.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 Dieses Dokument fasst alles zusammen, was bisher passiert ist, damit eine neue Sitzung ohne Vorgeschichte weiterarbeiten kann.
 
@@ -132,7 +132,11 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 ## 8. Offene Punkte / nächste Schritte
 0. **Installer auf dem Terminalserver testen** (Artifact „RaumfeldRemote-Setup“), Passwort setzen, Netze/Ruhezeiten
    einstellen, von einem Büro-PC aus abspielen. Danach entscheiden, ob Desktop-Variante/start.bat entfallen.
-0b. Spotify in der Web-Oberfläche (OAuth über eingefügte Redirect-URL), ggf. Benutzerrollen (Admin-Passwort).
+0a. Sascha hatte den Quellcode geladen und `installieren.bat` ausgeführt (alte Desktop-Variante) → kein Dienst.
+    Ab 0.9.0 liegt die Setup-EXE als **Release** auf der Repo-Seite; README weist darauf hin. Installation steht noch aus.
+0b. ✔ 0.9.0: Spotify in der Web-Oberfläche (Anmeldung per eingefügter Rückruf-Adresse `127.0.0.1:8888/callback`,
+    via YouTube oder Spotify Connect). Lokal mit simulierten Spotify-Antworten getestet; **echtes Konto ungetestet**.
+    Offen: ggf. Benutzerrollen (Admin-Passwort).
 1. Neuen PR (0.2.0 + 0.3.0) prüfen und mergen (siehe Abschnitt 7).
 2. **Erster Start auf Windows 11** → Fehlermeldungen aus der Statuszeile zurückmelden.
 3. Windows-Firewall-Regel für Port 8765 (privates Netz) setzen; Netzwerkprofil „Privat“ prüfen.
@@ -163,3 +167,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 19.11.2026 | 0.6.0 | Aufklappbares Live-Protokoll, UPnP-Befehle/Zustände protokolliert, `protokoll.py` |
 | 19.11.2026 | 0.7.0 | Ursache „kein Ton“: yt-dlp ohne JavaScript-Laufzeit → deno ergänzt, yt-dlp-Update in `start.bat` |
 | 20.11.2026 | 0.8.0 | Zentraler Dienst mit Web-Oberfläche, Passwort, Ruhezeiten, Installer (Inno Setup + WinSW) |
+| 20.11.2026 | 0.9.0 | Spotify in der Web-Oberfläche; Releases mit Setup-EXE |

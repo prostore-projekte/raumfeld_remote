@@ -26,6 +26,7 @@ from flask import Flask, jsonify, redirect, request, send_file, session
 from . import __version__
 from .einstellungen import konfig_ordner
 from .protokoll import abonnieren, protokoll
+from .spotify import SpotifyFehler
 from .zentrale import Zentrale
 
 WEB_ORDNER = Path(__file__).resolve().parent / "web"   # HTML-Seiten
@@ -117,7 +118,7 @@ def app_erzeugen(zentrale: Zentrale) -> Flask:
         def huelle(*args, **kwargs):
             try:
                 return funktion(*args, **kwargs)
-            except ValueError as exc:
+            except (ValueError, SpotifyFehler) as exc:
                 return jsonify(fehler=str(exc)), 400
             except RuntimeError as exc:   # z. B. Lautsprecher nicht erreichbar
                 return jsonify(fehler=str(exc)), 502
@@ -267,6 +268,66 @@ def app_erzeugen(zentrale: Zentrale) -> Flask:
         ziel.write_bytes(inhalt)
         protokoll(f"{wer()}: YouTube-Anmeldung (cookies.txt) hochgeladen.")
         return jsonify(meldung="YouTube-Anmeldung gespeichert – gilt für alle.")
+
+    # ------------------------------------------------------------ API: Spotify
+    @app.get("/api/spotify")
+    @api
+    def api_spotify_status():
+        return jsonify(zentrale.spotify_status())
+
+    @app.post("/api/spotify/client_id")
+    @api
+    def api_spotify_client_id():
+        zentrale.spotify_client_id_setzen(str(daten().get("client_id", "")))
+        return jsonify(meldung="Client-ID gespeichert.")
+
+    @app.post("/api/spotify/anmelden")
+    @api
+    def api_spotify_anmelden():
+        return jsonify(url=zentrale.spotify_anmelden_start())
+
+    @app.post("/api/spotify/code")
+    @api
+    def api_spotify_code():
+        zentrale.spotify_anmelden_ende(str(daten().get("adresse", "")), wer())
+        return jsonify(meldung="Spotify verbunden – gilt für alle.")
+
+    @app.post("/api/spotify/abmelden")
+    @api
+    def api_spotify_abmelden():
+        zentrale.spotify_abmelden(wer())
+        return jsonify(meldung="Spotify getrennt.")
+
+    @app.get("/api/spotify/playlists")
+    @api
+    def api_spotify_playlists():
+        return jsonify(playlists=zentrale.spotify_playlists())
+
+    @app.get("/api/spotify/geraete")
+    @api
+    def api_spotify_geraete():
+        return jsonify(geraete=zentrale.spotify_geraete())
+
+    @app.post("/api/spotify/abspielen")
+    @api
+    def api_spotify_abspielen():
+        d = daten()
+        playlist = str(d.get("playlist", ""))
+        if not playlist:
+            raise ValueError("Bitte eine Playlist wählen.")
+        if d.get("weg") == "connect":
+            meldung = zentrale.spotify_connect_abspielen(str(d.get("geraet", "")), playlist, wer())
+        else:
+            meldung = zentrale.spotify_via_youtube(str(d.get("box", "")), playlist,
+                                                   bool(d.get("zufall")), wer())
+        return jsonify(meldung=meldung)
+
+    @app.post("/api/spotify/steuern")
+    @api
+    def api_spotify_steuern():
+        d = daten()
+        zentrale.spotify_steuern(str(d.get("geraet", "")), str(d.get("aktion", "")))
+        return jsonify(ok=True)
 
     @app.post("/api/passwort")
     @api

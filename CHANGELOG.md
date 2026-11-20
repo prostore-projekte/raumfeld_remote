@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.9.0 – 20.11.2026
+### Hinzugefügt
+- **Spotify in der Web-Oberfläche**: gemeinsames Konto (Client-ID + Anmeldung per eingefügter Rückruf-Adresse),
+  Playlists auf einem Raumfeld-Lautsprecher (über YouTube-Suche, normale Warteschlange) oder per Spotify Connect
+  inkl. Steuerung; Ruhezeiten sperren Spotify und pausieren Connect
+- **Releases**: Bei jedem Stand auf `main` legt der Workflow ein Release `vX.Y.Z` mit der Setup-EXE an
+### Geändert
+- README: Hinweis, dass `installieren.bat`/`start.bat` nur die Einzelplatz-Variante sind
+
 ## 0.8.0 – 20.11.2026
 ### Hinzugefügt
 - **Zentraler Dienst mit Web-Oberfläche** für den Mehrbenutzer-Betrieb im Büro (`raumfeld_remote/zentrale.py`,

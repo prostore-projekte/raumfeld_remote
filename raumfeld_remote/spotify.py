@@ -175,6 +175,43 @@ class Spotify:
             "code": ergebnis["code"], "redirect_uri": REDIRECT_URI,
             "code_verifier": verifier}))
 
+    # ------------------------------------------------ Anmeldung ueber die Web-Oberflaeche
+    def anmelde_url(self) -> tuple[str, str, str]:
+        """
+        Fuer den zentralen Dienst: Anmelde-Adresse erzeugen, ohne selbst einen
+        Rueckruf-Server zu starten. Rueckgabe: (url, verifier, state).
+        Spotify leitet danach auf REDIRECT_URI (127.0.0.1:8888) weiter; im Browser
+        erscheint dort "Seite nicht erreichbar" - die Adresse enthaelt aber den
+        Code und wird in der Web-Oberflaeche eingefuegt (anmeldung_abschliessen).
+        """
+        if not self.client_id:
+            raise SpotifyFehler("Bitte zuerst die Spotify-Client-ID eintragen.")
+        verifier = secrets.token_urlsafe(64)[:100]
+        challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode()
+        zustand = secrets.token_urlsafe(16)
+        parameter = urllib.parse.urlencode({
+            "client_id": self.client_id, "response_type": "code",
+            "redirect_uri": REDIRECT_URI, "scope": SCOPES,
+            "code_challenge_method": "S256", "code_challenge": challenge,
+            "state": zustand})
+        return f"{AUTH_URL}?{parameter}", verifier, zustand
+
+    def anmeldung_abschliessen(self, rueckruf_adresse: str, verifier: str, zustand: str) -> None:
+        """Wertet die eingefuegte Rueckruf-Adresse aus und holt das Token."""
+        abfrage = urllib.parse.parse_qs(urllib.parse.urlparse(rueckruf_adresse.strip()).query)
+        if "error" in abfrage:
+            raise SpotifyFehler(f"Anmeldung abgelehnt: {abfrage['error'][0]}")
+        if "code" not in abfrage:
+            raise SpotifyFehler("In der eingefügten Adresse steht kein Code – bitte die komplette "
+                                "Adresse aus der Adresszeile kopieren (beginnt mit http://127.0.0.1:8888/callback?code=…).")
+        if abfrage.get("state", [""])[0] != zustand:
+            raise SpotifyFehler("Die Adresse gehört nicht zur aktuellen Anmeldung – bitte neu anmelden.")
+        self._token_speichern(self._token_anfrage({
+            "client_id": self.client_id, "grant_type": "authorization_code",
+            "code": abfrage["code"][0], "redirect_uri": REDIRECT_URI,
+            "code_verifier": verifier}))
+
     def _gueltiges_token(self) -> str:
         """Liefert ein gueltiges Access-Token (erneuert es bei Bedarf)."""
         if not self.angemeldet():

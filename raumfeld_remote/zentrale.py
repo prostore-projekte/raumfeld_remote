@@ -26,7 +26,8 @@ from dataclasses import dataclass, field
 from .einstellungen import konfig_ordner
 from .player import Wiedergabe
 from .protokoll import protokoll
-from .quellen import KEIN_FENSTER, finde_programm, titel_liste_aufbauen
+from .quellen import KEIN_FENSTER, Titel, finde_programm, titel_liste_aufbauen
+from .spotify import Spotify, SpotifyFehler
 from .stream_server import StreamServer
 from .upnp import (Renderer, hole_lautstaerke, lokale_ip_zu, netz_adressen,
                    renderer_laden, renderer_suchen, setze_lautstaerke)
@@ -48,6 +49,7 @@ STANDARD: dict = {
     # Ruhezeiten: Liste aus {"tage": [0..6] (0 = Montag), "von": "HH:MM", "bis": "HH:MM"}
     # "bis" vor "von" bedeutet: ueber Mitternacht (z. B. 21:00 bis 07:00)
     "ruhezeiten": [],
+    "spotify_client_id": "",    # Client-ID der eigenen Spotify-Developer-App
 }
 
 # Wochentage fuer Meldungen (Index wie datetime.weekday())
@@ -184,6 +186,10 @@ class Zentrale:
         self._zaehler = 0                         # fuer eindeutige Stream-Praefixe
         self.suche_laeuft = False
         self.letzte_suche = 0.0
+        # Spotify: ein gemeinsames Konto fuer alle (Token im Datenordner)
+        self.spotify = Spotify(konfig_ordner() / "spotify_token.json", self.einst["spotify_client_id"])
+        self._spotify_anmeldung: tuple[str, str] | None = None   # (verifier, state) waehrend der Anmeldung
+        self.spotify_geraet = ""   # zuletzt per Spotify Connect gestartetes Geraet (fuer Ruhezeit-Pause)
 
     # ------------------------------------------------------------ Start
     def starten(self) -> None:
@@ -285,6 +291,10 @@ class Zentrale:
         if not liste:
             raise ValueError("Keine abspielbaren Titel gefunden. " + " ".join(fehler))
 
+        return self._liste_starten(box, liste, zufall, wer)
+
+    def _liste_starten(self, box: BoxZustand, liste: list[Titel], zufall: bool, wer: str) -> str:
+        """Startet eine fertige Titelliste auf einem Lautsprecher (ersetzt dessen Warteschlange)."""
         server = self._server_sicherstellen()
         with self._sperre:
             if box.wiedergabe:
@@ -310,6 +320,86 @@ class Zentrale:
             box.gestartet_von = wer
             box.wiedergabe.starte(liste, mischen=zufall)
         return f"{len(liste)} Titel auf {box.renderer.name} gestartet."
+
+    # ------------------------------------------------------------ Spotify
+    def spotify_status(self) -> dict:
+        return {"client_id": bool(self.einst["spotify_client_id"]),
+                "angemeldet": self.spotify.angemeldet(),
+                "anmeldung_laeuft": self._spotify_anmeldung is not None}
+
+    def spotify_client_id_setzen(self, client_id: str) -> None:
+        client_id = client_id.strip()
+        if client_id and not client_id.isalnum():
+            raise ValueError("Die Client-ID besteht nur aus Buchstaben und Ziffern.")
+        self.einst.setzen(spotify_client_id=client_id)
+        self.spotify.client_id = client_id
+        protokoll("Spotify-Client-ID geändert.")
+
+    def spotify_anmelden_start(self) -> str:
+        """Liefert die Anmelde-Adresse; Verifier/State bleiben im Speicher des Dienstes."""
+        url, verifier, zustand = self.spotify.anmelde_url()
+        self._spotify_anmeldung = (verifier, zustand)
+        return url
+
+    def spotify_anmelden_ende(self, rueckruf_adresse: str, wer: str) -> None:
+        if self._spotify_anmeldung is None:
+            raise ValueError("Bitte zuerst „Bei Spotify anmelden“ klicken.")
+        verifier, zustand = self._spotify_anmeldung
+        self.spotify.anmeldung_abschliessen(rueckruf_adresse, verifier, zustand)
+        self._spotify_anmeldung = None
+        protokoll(f"{wer}: Spotify-Konto verbunden (gilt für alle).")
+
+    def spotify_abmelden(self, wer: str) -> None:
+        self.spotify.abmelden()
+        protokoll(f"{wer}: Spotify-Konto getrennt.")
+
+    def spotify_playlists(self) -> list[dict]:
+        return [{"id": p["id"], "name": p.get("name") or "(ohne Namen)",
+                 "anzahl": (p.get("tracks") or p.get("items") or {}).get("total", 0)}
+                for p in self.spotify.playlists() if p.get("id")]
+
+    def spotify_geraete(self) -> list[dict]:
+        return [{"id": g["id"], "name": g.get("name", "?"), "aktiv": bool(g.get("is_active"))}
+                for g in self.spotify.geraete() if g.get("id")]
+
+    def spotify_via_youtube(self, location: str, playlist_id: str, zufall: bool, wer: str) -> str:
+        """
+        Spotify-Playlist auf einem Raumfeld-Lautsprecher abspielen: Titelnamen von Spotify
+        lesen und jeden Titel beim Abspielen ueber die YouTube-Suche holen (Spotify-Audio
+        selbst ist DRM-geschuetzt und nicht abgreifbar).
+        """
+        self._ruhezeit_sperre()
+        box = self._box(location)
+        namen = self.spotify.playlist_titel(playlist_id)
+        if not namen:
+            raise ValueError("Die Playlist enthält keine lesbaren Titel.")
+        protokoll(f"{wer}: Spotify-Playlist ({len(namen)} Titel) über YouTube auf {box.renderer.name}")
+        # "ytsearch1:" laesst yt-dlp erst beim Abspielen den ersten Treffer suchen
+        liste = [Titel(f"ytsearch1:{n}", n) for n in namen]
+        return self._liste_starten(box, liste, zufall, wer)
+
+    def spotify_connect_abspielen(self, geraet_id: str, playlist_id: str, wer: str) -> str:
+        """Playlist direkt auf einem Spotify-Connect-Geraet starten (Spotify Premium noetig)."""
+        self._ruhezeit_sperre()
+        self.spotify.wiedergabe_starten(geraet_id, playlist_id)
+        self.spotify_geraet = geraet_id
+        protokoll(f"{wer}: Spotify Connect gestartet (Gerät {geraet_id[:8]}…)")
+        return "Spotify-Wiedergabe gestartet."
+
+    def spotify_steuern(self, geraet_id: str, aktion: str) -> None:
+        funktionen = {"pause": self.spotify.pause, "weiter": self.spotify.fortsetzen,
+                      "naechster": self.spotify.naechster, "voriger": self.spotify.voriger}
+        if aktion not in funktionen:
+            raise ValueError(f"Unbekannte Aktion: {aktion}")
+        if aktion != "pause":
+            self._ruhezeit_sperre()
+        funktionen[aktion](geraet_id)
+
+    def _ruhezeit_sperre(self) -> None:
+        """Wirft ValueError, wenn gerade eine Ruhezeit gilt."""
+        regel = aktive_ruhezeit(self.einst["ruhezeiten"])
+        if regel:
+            raise ValueError(f"Ruhezeit ({ruhezeit_text(regel)}) – Abspielen ist gerade gesperrt.")
 
     def steuern(self, location: str, aktion: str, index: int = -1) -> None:
         """Transport: pause, weiter, stop, naechster, voriger, springe."""
@@ -420,6 +510,13 @@ class Zentrale:
         regel = aktive_ruhezeit(self.einst["ruhezeiten"])
         if regel:
             anzahl = self.alles_stoppen(f"Ruhezeit ({ruhezeit_text(regel)}) – automatisch gestoppt.")
+            if self.spotify_geraet:
+                try:
+                    self.spotify.pause(self.spotify_geraet)
+                    protokoll("Ruhezeit: Spotify-Wiedergabe pausiert.")
+                except (SpotifyFehler, OSError):
+                    pass  # laeuft evtl. gar nicht mehr
+                self.spotify_geraet = ""
             if anzahl:
                 protokoll(f"Ruhezeit {ruhezeit_text(regel)}: {anzahl} Wiedergabe(n) gestoppt.")
 
