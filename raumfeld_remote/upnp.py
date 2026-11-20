@@ -277,8 +277,12 @@ def renderer_suchen(timeout: float = 3.0, zusatz_netze: list[str] | None = None,
         if url and url not in locations:
             locations.append(url)
     gefunden: list[Renderer] = []
+    direkt = set(bekannte_urls or [])
     for loc in locations:
         r = renderer_laden(loc)
+        if r is None and loc in direkt:
+            # Diagnose: gemerkte/eingetragene Adresse antwortet nicht (Box aus, IP/Port geaendert?)
+            protokoll(f"Gemerktes Gerät nicht erreichbar: {loc}")
         # Doppelte vermeiden (gleiches Geraet unter mehreren URLs)
         if r and all(x.avtransport_url != r.avtransport_url for x in gefunden):
             gefunden.append(r)

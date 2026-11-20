@@ -1,6 +1,6 @@
 # Handover – Raumfeld Remote
 
-Stand: 20.11.2026 · Version 0.11.0 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
+Stand: 20.11.2026 · Version 0.11.1 · Repo: <https://github.com/prostore-projekte/raumfeld_remote> (Branch `claude/ecstatic-mayer-gfo8yn`)
 
 **Kurz:** Zwei Varianten – Desktop-Programm (Einzelplatz, funktioniert bei Sascha) und **zentraler Dienst mit
 Web-Oberfläche + Installer** fürs Büro (Hauptweg, Abschnitt 7a; auf dem Terminalserver noch nicht installiert).
@@ -107,6 +107,11 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   Das Desktop-Programm lief, weil Windows beim Start „Zugriff zulassen“ anbot (Programmregel inkl. UDP).
   0.10.0: Programmregel im Installer + Suchdiagnose im Protokoll. Weitere mögliche Ursache: Netzprofil „Öffentlich“
   (Regel gilt nur für Domäne/Privat).
+  **Befund 0.11.0 (Sascha):** „254 Adressen angefragt, Antworten von keiner Adresse“, keine Sendefehler (Route da).
+  Neue Vermutung (**Annahme**): Das Desktop-Programm fand die Boxen gar nicht per SSDP, sondern über die gemerkte
+  `letzte_box`/`manuelle_boxen` (direkter HTTP-Abruf der Geräte-XML). Ob Raumfeld-Boxen auf Unicast-M-SEARCH antworten,
+  bleibt unbekannt. 0.11.1: Dienst übernimmt diese URLs einmalig aus `%PROGRAMDATA%` und `C:\Users\*\AppData\Roaming\
+  RaumfeldRemote\einstellungen.json` in `bekannte_boxen` und merkt sich jedes gefundene Gerät.
 - Ob der Port in der Raumfeld-Geräte-URL (z. B. `:60092`) nach einem Neustart der Box gleich bleibt, ist **unbekannt**.
 - Ob Raumfeld-Boxen in der Spotify-Geräteliste (Connect) erscheinen, ist **unbekannt** (hängt von Modell/Firmware ab). Die automatische Zuordnung Box ↔ Connect-Gerät per Namensvergleich ist eine **Annahme**.
 - Spotify-Web-API-Wiedergabesteuerung braucht nach Kenntnisstand **Premium**.
@@ -156,8 +161,9 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
   stattdessen wird der Zugang dauerhaft gespeichert. Sascha: „passt so“.
 
 ## 8. Offene Punkte / nächste Schritte
-1. **0.10.0 auf dem Server installieren** und prüfen: Boxen im Netz 192.168.20.0/24 gefunden? Sonst Protokoll-Zeilen
-   „Suche in weiteren Netzen …“ ansehen.
+1. **0.11.1 installieren** und prüfen: Protokoll „… Gerät(e) aus der Einzelplatz-Variante übernommen“ und Boxen
+   im Netz 192.168.20.0/24 sichtbar? Sonst Geräte-URL der Box (Desktop-Programm/Einstellungen) unter „Gerät per URL
+   hinzufügen“ eintragen.
 2a. **Tidal mit echtem Konto testen** (🔑 Konten → Tidal anmelden, Playlist abspielen). Bei Fehlern Protokoll ansehen
    (Zeilen „Tidal: …“). Unbekannt: ob die Geräte-Anmeldung von `tidalapi` 0.8.11 (eingebaute Client-ID) heute noch
    funktioniert und ob `get_url()` bei LOSSLESS eine Datei-URL liefert (sonst Weg über Stream-Manifest/HLS).
@@ -197,3 +203,4 @@ Komplettes Projekt, geliefert als `raumfeld_remote.zip` (Ordner `raumfeld_remote
 | 20.11.2026 | 0.9.2 | README: Link zur Setup-EXE, Abschnitt „Setup-EXE selbst bauen“ |
 | 20.11.2026 | 0.10.0 | Ports einstellbar (Standard 8766), Firewall-Programmregel, Suchdiagnose, Neusuche nach Netzänderung |
 | 20.11.2026 | 0.11.0 | Tidal (inoffizielle API `tidalapi`, Geräte-Code, Ton direkt von Tidal), Bereich „Konten“ |
+| 20.11.2026 | 0.11.1 | Gemerkte Geräte (Übernahme aus Einzelplatz-Variante, gefundene merken) statt nur SSDP |

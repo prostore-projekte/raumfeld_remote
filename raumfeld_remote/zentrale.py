@@ -53,6 +53,11 @@ STANDARD: dict = {
     "bitrate": "320k",          # MP3-Bitrate
     "such_netze": [],           # weitere Netze fuer die Suche, z. B. ["192.168.20.0/24"]
     "manuelle_boxen": [],       # Geraete-URLs, die bei jeder Suche direkt abgefragt werden
+    # Automatisch gemerkte Geraete-URLs (einmal gefunden oder aus der Einzelplatz-Variante
+    # uebernommen). Werden bei jeder Suche direkt abgefragt - wichtig fuer Netze hinter
+    # VPN/Router, in denen die SSDP-Suche keine Antwort bekommt.
+    "bekannte_boxen": [],
+    "alte_geraete_geprueft": False,   # Uebernahme aus der Einzelplatz-Variante schon erfolgt?
     "favoriten": [],            # Liste aus {"name": ..., "url": ...}
     # Ruhezeiten: Liste aus {"tage": [0..6] (0 = Montag), "von": "HH:MM", "bis": "HH:MM"}
     # "bis" vor "von" bedeutet: ueber Mitternacht (z. B. 21:00 bis 07:00)
@@ -233,6 +238,8 @@ class Zentrale:
     def starten(self) -> None:
         """Hintergrund-Aufgaben starten: erste Suche, Ruhezeit-Waechter, yt-dlp-Update."""
         protokoll("=== Raumfeld Remote Dienst gestartet ===")
+        if not self.einst["alte_geraete_geprueft"]:
+            self._alte_geraete_uebernehmen()
         self.suchen_im_hintergrund()
         threading.Thread(target=self._ruhezeit_waechter, daemon=True).start()
         threading.Thread(target=self._ytdlp_aktualisieren_schleife, daemon=True).start()
@@ -246,19 +253,63 @@ class Zentrale:
             self.suche_laeuft = True
         threading.Thread(target=self._suchen, daemon=True).start()
 
+    def _alte_geraete_uebernehmen(self) -> None:
+        r"""
+        Einmalig: Geraete-URLs aus der Einzelplatz-Variante (Desktop-Programm) uebernehmen.
+        Das Desktop-Programm merkt sich die zuletzt gewaehlte Box und fest eingetragene Geraete
+        und fragt sie bei jeder Suche direkt ab - deshalb fand es Boxen hinter dem VPN "sofort",
+        auch wenn die SSDP-Suche dort keine Antwort bekommt.
+        Gelesen werden (der Dienst laeuft als SYSTEM und darf das):
+          - %PROGRAMDATA%\RaumfeldRemote\einstellungen.json   (gemeinsame Einstellungen)
+          - C:\Users\*\AppData\Roaming\RaumfeldRemote\einstellungen.json  (je Benutzer)
+        """
+        dateien = [konfig_ordner() / "einstellungen.json"]
+        oeffentlich = os.environ.get("PUBLIC")   # z. B. C:\Users\Public -> Elternordner = C:\Users
+        if oeffentlich:
+            benutzer_ordner = Path(oeffentlich).parent
+            try:
+                dateien += list(benutzer_ordner.glob("*/AppData/Roaming/RaumfeldRemote/einstellungen.json"))
+            except OSError:
+                pass   # z. B. fehlende Rechte -> nur die gemeinsame Datei
+        urls: list[str] = []
+        for datei in dateien:
+            try:
+                daten = json.loads(datei.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            kandidaten = list(daten.get("manuelle_boxen") or []) + [daten.get("letzte_box") or ""]
+            for url in kandidaten:
+                if isinstance(url, str) and url.startswith("http") and url not in urls:
+                    urls.append(url)
+        neu = [u for u in urls if u not in self.einst["bekannte_boxen"]]
+        self.einst.setzen(bekannte_boxen=self.einst["bekannte_boxen"] + neu, alte_geraete_geprueft=True)
+        if neu:
+            protokoll(f"{len(neu)} Gerät(e) aus der Einzelplatz-Variante übernommen: {', '.join(neu)}")
+        else:
+            protokoll("Keine Geräte aus der Einzelplatz-Variante gefunden.")
+
     def _suchen(self) -> None:
         try:
             protokoll("Lautsprechersuche gestartet …")
+            bekannte = self.einst["manuelle_boxen"] + [
+                u for u in self.einst["bekannte_boxen"] if u not in self.einst["manuelle_boxen"]]
             gefunden = renderer_suchen(timeout=4.0,
                                        zusatz_netze=self.einst["such_netze"],
-                                       bekannte_urls=self.einst["manuelle_boxen"])
+                                       bekannte_urls=bekannte)
             with self._sperre:
                 for r in gefunden:
                     if r.location in self.boxen:
                         self.boxen[r.location].renderer = r   # Daten auffrischen
                     else:
                         self.boxen[r.location] = BoxZustand(renderer=r)
-            protokoll(f"Lautsprechersuche fertig: {len(gefunden)} Gerät(e) gefunden.")
+            # Gefundene Geraete dauerhaft merken (max. 50), damit sie beim naechsten Mal
+            # auch ohne SSDP-Antwort direkt abgefragt werden
+            gemerkt = self.einst["bekannte_boxen"]
+            neu = [r.location for r in gefunden if r.location not in gemerkt]
+            if neu:
+                self.einst.setzen(bekannte_boxen=(gemerkt + neu)[-50:])
+            protokoll(f"Lautsprechersuche fertig: {len(gefunden)} Gerät(e) gefunden"
+                      + (f" ({len(bekannte)} gemerkte Adresse(n) direkt abgefragt)." if bekannte else "."))
         finally:
             with self._sperre:
                 self.suche_laeuft = False

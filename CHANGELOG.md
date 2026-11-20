@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen. Versionierung nach [SemVer](https://semver.org/lang/de/):
 MAJOR.MINOR.PATCH (Fehlerbehebung/Doku → PATCH, neue Funktion → MINOR).
 
+## 0.11.1 – 20.11.2026
+### Behoben
+- Dienst fand Lautsprecher im anderen Netz (VPN) nicht, die Einzelplatz-Variante schon: Diese fragt die zuletzt
+  benutzte und fest eingetragene Box direkt ab, statt nur zu suchen. Der Dienst übernimmt diese Adressen jetzt beim
+  ersten Start (gemeinsame und alle Benutzer-Einstellungen) und merkt sich künftig jedes gefundene Gerät
+- Protokoll meldet gemerkte Geräte, die nicht antworten
+
 ## 0.11.0 – 20.11.2026
 ### Hinzugefügt
 - **Tidal** in der Web-Oberfläche: Anmeldung per Code (link.tidal.com), Playlists, „Meine Titel“, Suche nach
